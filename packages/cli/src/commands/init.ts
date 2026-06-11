@@ -12,8 +12,8 @@ import { runDoctor } from './doctor';
 
 /**
  * `substrata init` — one-command setup wizard (plan §8.1). Non-TTY/`--yes`
- * accepts all defaults. After applying, runs the embedded doctor health check and
- * builds the initial index (unless `--no-index`).
+ * accepts all defaults. After applying, builds the initial index (unless
+ * `--no-index`) and then runs the embedded doctor health check.
  */
 
 /** Disable redaction in the written config when `--no-redact` was passed. */
@@ -86,15 +86,27 @@ export function registerInitCommand(program: Command): void {
         out.warn('Security redaction disabled (--no-redact).');
       }
 
-      // Embedded health check (doctor logic).
-      out.plain('');
-      await runDoctor(cwd);
-
-      // Build the initial index unless skipped.
+      // Build the initial index first so the health check below reports it
+      // as fresh instead of telling the user it is missing.
       if (flags.index !== false) {
         await buildIndex(cwd);
         out.ok('Initial index built.');
       }
+
+      // Embedded health check (doctor logic).
+      out.plain('');
+      await runDoctor(cwd);
+
+      out.plain('');
+      out.plain('You are set. Agents pick up Substrata automatically from here:');
+      out.plain('  - AGENTS.md tells them to check context before work and leave footprints after');
+      out.plain('  - registered MCP clients expose substrata_context / substrata_add as tools');
+      out.plain('');
+      out.plain('To try it yourself:');
+      out.plain(
+        '  substrata context "<what you are about to work on>"   # retrieve relevant memory',
+      );
+      out.plain('  substrata --help                                      # all commands');
     });
 }
 
