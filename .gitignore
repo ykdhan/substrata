@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.omc/
+*.tsbuildinfo
+
+# substrata generated artifacts (for dogfooding in this repo)
+.substrata/index/
+.substrata/cache/
+.substrata/tmp/
+
+# local planning doc, not part of the repo
+substrata-plan.md
