@@ -98,14 +98,15 @@ export function registerInitCommand(program: Command): void {
       await runDoctor(cwd);
 
       out.plain('');
-      out.plain('Next steps:');
-      out.plain(
-        '  substrata context "<what you are about to work on>"   # retrieve relevant memory',
-      );
-      out.plain(
-        '  substrata add --from-git                              # record work as a footprint',
-      );
-      out.plain('  substrata --help                                      # all commands');
+      out.plain('You are set. Agents pick up Substrata automatically from here:');
+      out.plain('  - AGENTS.md tells them to check context before work and leave footprints after');
+      out.plain('  - registered MCP clients expose substrata_context / substrata_add as tools');
+      out.plain('');
+      out.plain('To try it yourself:');
+      out.plain('  npx substrata-cli context "<what you are about to work on>"');
+      out.plain('');
+      out.plain('Note: npx does not install a global binary. For a bare `substrata`');
+      out.plain('command, run: npm install -g substrata-cli');
     });
 }
 

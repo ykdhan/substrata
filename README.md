@@ -30,7 +30,7 @@ Substrata is **not** a replacement for Git commits, PR descriptions, ADRs, or do
 
 ### Installation and Setup
 
-The npm package name `substrata` is taken by an unrelated package, so the published package is `substrata-cli` (the installed binary is still `substrata`). Install and run via:
+The npm package name `substrata` is taken by an unrelated package, so the published package is `substrata-cli`. Set up a repository with:
 
 ```bash
 npx substrata-cli init
@@ -38,22 +38,31 @@ npx substrata-cli init
 
 This starts an interactive setup wizard that scaffolds `.substrata/`, sets up environment variables for agent attribution, registers MCP with your editor, and builds an initial search index. Every prompt has a sensible default, so you can press Enter through the whole wizard for a working setup.
 
-```bash
-source ~/.zshrc                                    # load attribution env vars (if wizard created them)
-substrata context "I need to improve user search"  # index builds automatically on first query
-```
-
 Non-interactive setup (CI/scripts):
 
 ```bash
 npx substrata-cli init --yes --project my-app
 ```
 
-The installed binary is `substrata`:
+> **Note:** `npx` runs the CLI from a cache — it does **not** install a global `substrata` command. Either keep using `npx substrata-cli <command>`, or install globally for the bare binary:
+>
+> ```bash
+> npm install -g substrata-cli
+> substrata --help
+> ```
+
+### After setup, agents take over
+
+You normally don't run Substrata by hand. `init` wires up two things that make agents use it automatically:
+
+- **AGENTS.md** — rules telling agents to check context before non-trivial work and leave a footprint after.
+- **MCP registration** — agents call `substrata_context`, `substrata_search`, and `substrata_add` directly as tools.
+
+Open a new agent session (e.g. Claude Code) in the repository and it picks Substrata up from there. To try it manually:
 
 ```bash
-substrata --help
-substrata init --help
+source ~/.zshrc                                                 # load attribution env vars (if wizard created them)
+npx substrata-cli context "I need to improve user search"       # index builds automatically on first query
 ```
 
 ### Troubleshooting `better-sqlite3`
@@ -107,6 +116,7 @@ If installation fails during `npm install` or `pnpm install`:
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                      |
 | `hook install`       | Install a pre-commit secret scan hook (optional)                                                       |
+| `upgrade`            | Refresh generated artifacts (AGENTS.md section, gitignore, MCP registrations) after a CLI upgrade      |
 | `mcp`                | Run the MCP server (for agent integration)                                                             |
 
 ## Key Options
@@ -147,20 +157,14 @@ Substrata ships with an MCP server so AI agents can call it directly. The `init`
 
 ### Claude Code (via init wizard)
 
-The wizard offers to register via:
-
-```bash
-claude mcp add --scope project
-```
-
-In `.claude/mcp.json`:
+The wizard writes a project-scoped `.mcp.json` (idempotent — re-running `init` or `upgrade` refreshes the entry in place):
 
 ```json
 {
   "mcpServers": {
     "substrata": {
-      "command": "node",
-      "args": ["/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
+      "command": "npx",
+      "args": ["-y", "substrata-cli", "mcp"]
     }
   }
 }
