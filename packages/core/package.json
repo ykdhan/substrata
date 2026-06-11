@@ -1,0 +1,45 @@
+{
+  "name": "@substrata/core",
+  "version": "0.1.0",
+  "description": "Core file model for Substrata: footprints, curated memory, config, redaction, and setup writers",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ykdhan/substrata.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "memory",
+    "footprint",
+    "claude-code",
+    "mcp"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

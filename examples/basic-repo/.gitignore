@@ -1,0 +1,4 @@
+.substrata/index/
+.substrata/cache/
+.substrata/tmp/
+node_modules/
