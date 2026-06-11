@@ -1,0 +1,35 @@
+schema_version: 1
+project:
+  name: basic-repo-example
+
+storage:
+  footprints_dir: .substrata/footprints
+  memory_dir: .substrata/memory
+  index_path: .substrata/index/footprint.sqlite
+
+search:
+  default_limit: 8
+  max_context_tokens: 1600
+
+security:
+  redact: true
+  scan_content: true
+  entropy_scan: false
+  entropy_min_length: 32
+  block_on_secret: true
+  redaction_keys:
+    - token
+    - apiKey
+    - api_key
+    - authorization
+    - password
+    - secret
+    - cookie
+    - privateKey
+    - accessToken
+    - refreshToken
+
+agent:
+  default_actor: example-agent
+  default_model: example-model
+  require_footprint_after_non_trivial_work: true
