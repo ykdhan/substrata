@@ -26,7 +26,7 @@ describe('mergeMcpJson', () => {
 
     const json = JSON.parse(readFileSync(file, 'utf8'));
     expect(json.mcpServers.substrata.command).toBe('npx');
-    expect(json.mcpServers.substrata.args).toEqual(['-y', '@substrata/cli', 'mcp']);
+    expect(json.mcpServers.substrata.args).toEqual(['-y', 'substrata-cli', 'mcp']);
   });
 
   it('is idempotent: a second merge skips', () => {

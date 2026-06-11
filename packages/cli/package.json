@@ -1,5 +1,5 @@
 {
-  "name": "@substrata/cli",
+  "name": "substrata-cli",
   "version": "0.1.0",
   "description": "Substrata CLI — shared project memory for AI engineering agents",
   "license": "MIT",
@@ -41,13 +41,17 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "better-sqlite3": "^12.0.0",
+    "commander": "^14.0.0",
+    "picocolors": "^1.1.0",
+    "yaml": "^2.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
     "@substrata/core": "workspace:*",
     "@substrata/mcp-server": "workspace:*",
     "@substrata/search": "workspace:*",
-    "commander": "^14.0.0",
-    "picocolors": "^1.1.0"
-  },
-  "devDependencies": {
     "@types/node": "^22.0.0"
   }
 }

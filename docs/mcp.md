@@ -213,7 +213,7 @@ To manually add, edit `.claude/mcp.json`:
   "mcpServers": {
     "substrata": {
       "command": "node",
-      "args": ["/absolute/path/to/node_modules/@substrata/cli/dist/bin.js", "mcp"]
+      "args": ["/absolute/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
     }
   }
 }
@@ -222,7 +222,7 @@ To manually add, edit `.claude/mcp.json`:
 Get the absolute path:
 
 ```bash
-realpath ./node_modules/@substrata/cli/dist/bin.js
+realpath ./node_modules/substrata-cli/dist/bin.js
 ```
 
 ### Cursor
@@ -234,7 +234,7 @@ Add to `.cursor/mcp.json`:
   "mcpServers": {
     "substrata": {
       "command": "node",
-      "args": ["/absolute/path/to/node_modules/@substrata/cli/dist/bin.js", "mcp"]
+      "args": ["/absolute/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
     }
   }
 }

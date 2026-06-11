@@ -38,6 +38,25 @@ importers:
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.12.0
+        version: 1.29.0(zod@3.25.76)
+      better-sqlite3:
+        specifier: ^12.0.0
+        version: 12.10.0
+      commander:
+        specifier: ^14.0.0
+        version: 14.0.3
+      picocolors:
+        specifier: ^1.1.0
+        version: 1.1.1
+      yaml:
+        specifier: ^2.6.0
+        version: 2.9.0
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+    devDependencies:
       '@substrata/core':
         specifier: workspace:*
         version: link:../core
@@ -47,13 +66,6 @@ importers:
       '@substrata/search':
         specifier: workspace:*
         version: link:../search
-      commander:
-        specifier: ^14.0.0
-        version: 14.0.3
-      picocolors:
-        specifier: ^1.1.0
-        version: 1.1.1
-    devDependencies:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.21

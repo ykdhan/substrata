@@ -65,7 +65,7 @@ Search index, querying, ranking, and freshness.
 - **Freshness**: track source file count and mtime; detect missing/stale/fresh index
 - **Auto-rebuild**: lazy rebuild on missing or stale
 
-### `@substrata/cli`
+### `substrata-cli` (published as the single npm package)
 
 User-facing commands and interaction.
 

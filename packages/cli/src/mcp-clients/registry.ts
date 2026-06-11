@@ -32,7 +32,7 @@ export type McpClient = {
 export const SUBSTRATA_MCP_SPEC: McpServerSpec = {
   name: 'substrata',
   command: 'npx',
-  args: ['-y', '@substrata/cli', 'mcp'],
+  args: ['-y', 'substrata-cli', 'mcp'],
 };
 
 export const MCP_CLIENTS: McpClient[] = [claudeCodeClient, cursorClient, windsurfClient];
