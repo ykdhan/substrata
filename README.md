@@ -116,6 +116,7 @@ If installation fails during `npm install` or `pnpm install`:
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                      |
 | `hook install`       | Install a pre-commit secret scan hook (optional)                                                       |
+| `upgrade`            | Refresh generated artifacts (AGENTS.md section, gitignore, MCP registrations) after a CLI upgrade      |
 | `mcp`                | Run the MCP server (for agent integration)                                                             |
 
 ## Key Options
@@ -156,20 +157,14 @@ Substrata ships with an MCP server so AI agents can call it directly. The `init`
 
 ### Claude Code (via init wizard)
 
-The wizard offers to register via:
-
-```bash
-claude mcp add --scope project
-```
-
-In `.claude/mcp.json`:
+The wizard writes a project-scoped `.mcp.json` (idempotent — re-running `init` or `upgrade` refreshes the entry in place):
 
 ```json
 {
   "mcpServers": {
     "substrata": {
-      "command": "node",
-      "args": ["/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
+      "command": "npx",
+      "args": ["-y", "substrata-cli", "mcp"]
     }
   }
 }

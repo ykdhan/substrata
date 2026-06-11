@@ -13,7 +13,9 @@ import { registerMemoryUpdateCommand } from './commands/memory-update';
 import { registerSearchCommand } from './commands/search';
 import { registerShowCommand } from './commands/show';
 import { registerSupersedeCommand } from './commands/supersede';
+import { registerUpgradeCommand } from './commands/upgrade';
 import { CliError, out } from './util';
+import pkg from '../package.json';
 import { PromptCancelledError } from './wizard/prompts';
 
 /**
@@ -29,7 +31,7 @@ export function buildProgram(): Command {
   program
     .name('substrata')
     .description('Shared project memory for AI engineering agents')
-    .version('0.1.0')
+    .version(pkg.version)
     // Hidden global flag so tests can run commands against a temp dir.
     .option('--cwd <dir>', 'Run as if invoked from this directory')
     .enablePositionalOptions();
@@ -48,6 +50,7 @@ export function buildProgram(): Command {
   registerSupersedeCommand(program);
   registerMemoryUpdateCommand(program);
   registerHookCommand(program);
+  registerUpgradeCommand(program);
   registerMcpCommand(program);
 
   return program;
