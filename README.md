@@ -30,10 +30,10 @@ Substrata is **not** a replacement for Git commits, PR descriptions, ADRs, or do
 
 ### Installation and Setup
 
-The npm package name `substrata` is taken by an unrelated package. Install and run via:
+The npm package name `substrata` is taken by an unrelated package, so the published package is `substrata-cli` (the installed binary is still `substrata`). Install and run via:
 
 ```bash
-npx @substrata/cli init
+npx substrata-cli init
 ```
 
 This starts an interactive setup wizard that scaffolds `.substrata/`, sets up environment variables for agent attribution, registers MCP with your editor, and builds an initial search index. Every prompt has a sensible default, so you can press Enter through the whole wizard for a working setup.
@@ -46,7 +46,7 @@ substrata context "I need to improve user search"  # index builds automatically 
 Non-interactive setup (CI/scripts):
 
 ```bash
-npx @substrata/cli init --yes --project my-app
+npx substrata-cli init --yes --project my-app
 ```
 
 The installed binary is `substrata`:
@@ -160,7 +160,7 @@ In `.claude/mcp.json`:
   "mcpServers": {
     "substrata": {
       "command": "node",
-      "args": ["/path/to/node_modules/@substrata/cli/dist/bin.js", "mcp"]
+      "args": ["/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
     }
   }
 }
@@ -175,7 +175,7 @@ Add to `.cursor/mcp.json`:
   "mcpServers": {
     "substrata": {
       "command": "node",
-      "args": ["/absolute/path/to/node_modules/@substrata/cli/dist/bin.js", "mcp"]
+      "args": ["/absolute/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
     }
   }
 }
@@ -233,12 +233,12 @@ Never store secrets, credentials, API keys, tokens, or sensitive user data in Su
 
 ## Monorepo Packages
 
-| Package                 | Purpose                                                                       |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `@substrata/core`       | File model, footprint/memory parsing, redaction, ID generation, setup writers |
-| `@substrata/search`     | SQLite FTS index, querying, ranking, freshness detection                      |
-| `@substrata/cli`        | CLI binary, commands, init wizard, MCP client registry                        |
-| `@substrata/mcp-server` | MCP server and tool implementations                                           |
+| Package                 | Purpose                                                                       | Published                       |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------- |
+| `substrata-cli`         | CLI binary, commands, init wizard, MCP client registry, MCP server entrypoint | yes — the only npm package      |
+| `@substrata/core`       | File model, footprint/memory parsing, redaction, ID generation, setup writers | no — bundled into substrata-cli |
+| `@substrata/search`     | SQLite FTS index, querying, ranking, freshness detection                      | no — bundled into substrata-cli |
+| `@substrata/mcp-server` | MCP server and tool implementations                                           | no — bundled into substrata-cli |
 
 ## Contributing
 

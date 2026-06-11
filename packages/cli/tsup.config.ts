@@ -7,5 +7,8 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: 'node20',
+  // The internal workspace packages are bundled into the published artifact so
+  // substrata-cli ships as a single self-contained npm package.
+  noExternal: ['@substrata/core', '@substrata/search', '@substrata/mcp-server'],
   external: ['better-sqlite3'],
 });
