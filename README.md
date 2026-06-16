@@ -65,6 +65,49 @@ source ~/.zshrc                                                 # load attributi
 npx substrata-cli context "I need to improve user search"       # index builds automatically on first query
 ```
 
+### Automatic context injection & recording (Claude Code)
+
+MCP tools make Substrata _available_, but an agent only benefits if it actually
+calls `substrata_context` before work and `substrata_add` after. In practice that
+read side rarely happens on its own. The Claude Code lifecycle hooks close the
+loop deterministically instead of relying on the model to remember:
+
+- **On session start** — the most recent footprints are injected so the session
+  knows project memory exists and what was last decided.
+- **On every prompt** — footprints relevant to your prompt are searched and
+  injected as additional context (within `hooks.max_context_tokens`, falling back
+  to `search.max_context_tokens`; nothing below `hooks.min_score` is injected, so
+  irrelevant memory never adds noise).
+- **When the agent stops after non-trivial work** — a reminder to record a
+  footprint fires (suppressed for subagents to avoid footprint floods, and never
+  loops).
+
+Install them into `.claude/settings.json` (the `init` wizard offers this when
+Claude Code is detected; this is also how you retrofit an already-initialized
+repo):
+
+```bash
+npx -y substrata-cli hook claude            # install (idempotent)
+npx -y substrata-cli hook claude --remove   # remove cleanly
+```
+
+The write is surgical — only Substrata's own hook entries are touched, so any
+hooks you already have are preserved. Tune behavior under the `hooks:` block in
+`.substrata/config.yml`:
+
+```yaml
+hooks:
+  enabled: true              # master switch
+  inject_context: true       # SessionStart / UserPromptSubmit injection
+  # max_context_tokens: 1600 # defaults to search.max_context_tokens
+  min_score: 0               # raise to suppress low-relevance injections
+  remind_on_stop: true       # footprint reminder on Stop
+  non_trivial_threshold: 2   # changed-file count that counts as non-trivial
+```
+
+Hooks fail open: if anything goes wrong (no config, parse error, slow disk) the
+handler stays silent and exits 0 — a Substrata hook never blocks your session.
+
 ### Troubleshooting `better-sqlite3`
 
 Substrata uses `better-sqlite3` for the local FTS search index. It's a native module and can be tricky to install in some environments (Node version mismatch, ARM architecture, corporate proxy, etc.).
@@ -116,6 +159,7 @@ If installation fails during `npm install` or `pnpm install`:
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                      |
 | `hook install`       | Install a pre-commit secret scan hook (optional)                                                       |
+| `hook claude`        | Install/remove the Claude Code lifecycle hooks (auto context injection + footprint reminder)           |
 | `upgrade`            | Refresh generated artifacts (AGENTS.md section, gitignore, MCP registrations) after a CLI upgrade      |
 | `mcp`                | Run the MCP server (for agent integration)                                                             |
 

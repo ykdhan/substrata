@@ -17,6 +17,11 @@ export const AGENTS_MD_SECTION = `${BEGIN}
 
 This repository uses Substrata for shared agent memory.
 
+If the Claude Code lifecycle hooks are installed (\`npx -y substrata-cli hook claude\`),
+relevant footprints are injected into context automatically on session start and on
+each prompt, and a reminder to record one fires after non-trivial work — the steps
+below still apply, the hooks just make them reliable rather than optional.
+
 Prefer the MCP tools (\`substrata_context\`, \`substrata_search\`, \`substrata_add\`,
 \`substrata_related_to_file\`, \`substrata_list_recent\`) when they are available.
 For shell usage, run the CLI as \`npx -y substrata-cli <command>\` — the bare

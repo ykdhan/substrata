@@ -63,6 +63,13 @@ export const defaultConfig: SubstrataConfig = {
     default_actor: 'unknown-agent',
     require_footprint_after_non_trivial_work: true,
   },
+  hooks: {
+    enabled: true,
+    inject_context: true,
+    min_score: 0,
+    remind_on_stop: true,
+    non_trivial_threshold: 2,
+  },
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {

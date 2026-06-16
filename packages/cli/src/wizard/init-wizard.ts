@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   ensureGitignore,
   initProject,
+  installClaudeHooks,
   installSecretHook,
   renderConfig,
   upsertAgentsMd,
@@ -43,6 +44,7 @@ export type InitFlags = {
   gitignore?: boolean; // --no-gitignore => false
   redact?: boolean; // --no-redact => false
   withHook?: boolean;
+  claudeHooks?: boolean; // --no-claude-hooks => false
   index?: boolean; // --no-index => false
   printConfig?: boolean;
 };
@@ -54,6 +56,7 @@ type Answers = {
   rcPath: string;
   redact: boolean;
   withHook: boolean;
+  installClaudeHooks: boolean;
   writeAgentsMd: boolean;
   writeGitignore: boolean;
   mcpClients: McpClient[];
@@ -187,6 +190,18 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
 
   const mcpClients = await resolveMcpClients(cwd, flags);
 
+  // Default the lifecycle-hooks prompt on when Claude Code is in the mix.
+  const claudeDetected = mcpClients.some((c) => c.name === 'claude');
+  const installHooks =
+    flags.claudeHooks === false
+      ? false
+      : flags.claudeHooks === true
+        ? true
+        : await promptConfirm({
+            message: 'Install Claude Code lifecycle hooks (auto-inject memory + footprint reminder)?',
+            defaultValue: claudeDetected,
+          });
+
   return {
     projectName,
     attribution,
@@ -194,6 +209,7 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
     rcPath: detectShellRc(),
     redact,
     withHook,
+    installClaudeHooks: installHooks,
     writeAgentsMd,
     writeGitignore,
     mcpClients,
@@ -232,6 +248,10 @@ async function buildPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
     changes.push(installSecretHook(cwd, true));
   }
 
+  if (answers.installClaudeHooks) {
+    changes.push(installClaudeHooks(cwd, true));
+  }
+
   for (const client of answers.mcpClients) {
     changes.push(await client.register(cwd, SUBSTRATA_MCP_SPEC, true));
   }
@@ -264,6 +284,10 @@ async function applyPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 
   if (answers.withHook) {
     applied.push(installSecretHook(cwd, false));
+  }
+
+  if (answers.installClaudeHooks) {
+    applied.push(installClaudeHooks(cwd, false));
   }
 
   for (const client of answers.mcpClients) {

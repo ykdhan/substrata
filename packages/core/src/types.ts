@@ -159,6 +159,26 @@ export type SubstrataConfig = {
     default_model?: string;
     require_footprint_after_non_trivial_work: boolean;
   };
+  hooks: {
+    /** Master switch for the Claude Code lifecycle hooks. */
+    enabled: boolean;
+    /** Inject relevant context on SessionStart / UserPromptSubmit. */
+    inject_context: boolean;
+    /**
+     * Token budget for hook-injected context. When omitted, falls back to
+     * `search.max_context_tokens` so existing tuning carries over.
+     */
+    max_context_tokens?: number;
+    /**
+     * Minimum (normalized) relevance score a result must clear to be injected.
+     * 0 lets everything the search returns through; raise it to suppress noise.
+     */
+    min_score: number;
+    /** On Stop / SubagentStop, remind the agent to leave a footprint. */
+    remind_on_stop: boolean;
+    /** Changed-file count at/above which work counts as "non-trivial". */
+    non_trivial_threshold: number;
+  };
 };
 
 export type InitOptions = {
