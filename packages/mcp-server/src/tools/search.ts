@@ -4,6 +4,8 @@ import type { SearchResult } from '@substrata/core';
 import { buildIndex, getIndexStatus, search } from '@substrata/search';
 import { z } from 'zod';
 
+import { recordRead } from './telemetry';
+
 /** Raw zod shape for the substrata_search tool input. */
 export const searchInputShape = {
   query: z.string().describe('Free-text query over footprints and curated memory.'),
@@ -50,6 +52,13 @@ export async function runSearch(
     files: input.files,
     tags: input.tags,
     excludeSuperseded: input.excludeSuperseded,
+  });
+  await recordRead(cwd, {
+    op: 'search',
+    query: input.query,
+    resultCount: results.length,
+    returnedIds: results.map((r) => r.id),
+    source: 'mcp',
   });
   return { results };
 }

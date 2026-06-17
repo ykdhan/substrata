@@ -5,6 +5,7 @@ import { getRelatedToFile } from '@substrata/search';
 import { z } from 'zod';
 
 import { ensureIndexFresh } from './search';
+import { recordRead } from './telemetry';
 
 /** Raw zod shape for the substrata_related_to_file tool input. */
 export const relatedToFileInputShape = {
@@ -23,5 +24,12 @@ export async function runRelatedToFile(
 ): Promise<{ results: SearchResult[] }> {
   await ensureIndexFresh(cwd);
   const results = await getRelatedToFile(input.filePath, { cwd, limit: input.limit });
+  await recordRead(cwd, {
+    op: 'related',
+    query: input.filePath,
+    resultCount: results.length,
+    returnedIds: results.map((r) => r.id),
+    source: 'mcp',
+  });
   return { results };
 }

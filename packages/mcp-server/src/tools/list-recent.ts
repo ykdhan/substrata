@@ -3,6 +3,8 @@
 import { listFootprints, type Footprint, type SearchResult } from '@substrata/core';
 import { z } from 'zod';
 
+import { recordRead } from './telemetry';
+
 const DEFAULT_LIMIT = 8;
 
 /** Raw zod shape for the substrata_list_recent tool input. */
@@ -54,5 +56,11 @@ export async function runListRecent(
 
   footprints.sort((a, b) => recencyKey(b).localeCompare(recencyKey(a)));
   const results = footprints.slice(0, limit).map(toSummary);
+  await recordRead(cwd, {
+    op: 'list',
+    resultCount: results.length,
+    returnedIds: results.map((r) => r.id),
+    source: 'mcp',
+  });
   return { results };
 }

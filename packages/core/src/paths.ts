@@ -46,6 +46,15 @@ export function indexPath(cwd: string): string {
 }
 
 /**
+ * Absolute path to the local access-log DB. Lives beside the index (under the
+ * gitignored `index/` dir) but is a SEPARATE file so it survives index rebuilds,
+ * which drop & recreate every index table.
+ */
+export function accessLogPath(cwd: string): string {
+  return path.join(substrataDir(cwd), 'index', 'access.sqlite');
+}
+
+/**
  * Repo-relative footprint path of the form
  * `YYYY/MM/YYYY-MM-DD-<slug>-<suffix>.md` (forward slashes).
  */

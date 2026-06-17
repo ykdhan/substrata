@@ -48,6 +48,8 @@ export function registerInitCommand(program: Command): void {
     .option('--no-gitignore', "Don't edit .gitignore")
     .option('--no-redact', 'Disable security redaction (NOT recommended)')
     .option('--with-hook', 'Install the pre-commit secret hook')
+    .option('--claude-hooks', 'Install Claude Code lifecycle hooks (no prompt)')
+    .option('--no-claude-hooks', 'Skip Claude Code lifecycle hooks')
     .option('--no-index', 'Skip building the initial index')
     .option('--print-config', 'Print resolved config.yml without writing anything')
     .action(async (opts: InitCommandOptions, command: Command) => {
@@ -66,6 +68,7 @@ export function registerInitCommand(program: Command): void {
         gitignore: opts.gitignore,
         redact: opts.redact,
         withHook: opts.withHook,
+        claudeHooks: opts.claudeHooks,
         index: opts.index,
         printConfig: opts.printConfig,
       };
@@ -123,6 +126,7 @@ type InitCommandOptions = {
   gitignore?: boolean;
   redact?: boolean;
   withHook?: boolean;
+  claudeHooks?: boolean;
   index?: boolean;
   printConfig?: boolean;
 };

@@ -3,15 +3,21 @@ import path from 'node:path';
 
 import {
   GITIGNORE_LINES,
+  claudeHooksInstalled,
   listFootprints,
   listMemoryDocuments,
   loadConfig,
   substrataDir,
 } from '@substrata/core';
-import { getIndexStatus } from '@substrata/search';
+import { getIndexStatus, readStats } from '@substrata/search';
 import type { Command } from 'commander';
 
 import { out, resolveCwd } from '../util';
+
+/** Footprints older than this (days) count as "no recent activity". */
+const RECENT_ACTIVITY_DAYS = 14;
+/** Warn when reads per write fall below this — memory is written but not read. */
+const MIN_READ_WRITE_RATIO = 1;
 
 /**
  * `substrata doctor` — health check (plan §8.8). A missing/stale index is
@@ -80,7 +86,87 @@ export async function runDoctor(cwd: string): Promise<number> {
     failures += 1;
   }
 
+  // Health warnings (informational; never affect the exit code). These automate
+  // the manual checks the loop-recovery analysis had to do by hand (plan P3).
+  await reportHealth(cwd);
+
   return failures;
+}
+
+/**
+ * Emit health warnings: hooks not installed, no recent footprints, and a low
+ * read:write ratio (memory written more than it is read). Warnings only — they
+ * surface risks without failing `doctor`.
+ */
+async function reportHealth(cwd: string): Promise<void> {
+  // Health checks are advisory and must respect intent: if a feature is turned
+  // off in config, warning about it would be noise. Load best-effort — a broken
+  // config is already reported as a hard failure above.
+  let config;
+  try {
+    config = await loadConfig(cwd);
+  } catch {
+    return;
+  }
+
+  // Lifecycle hooks installed? Only relevant when hooks are enabled.
+  if (!config.hooks.enabled) {
+    out.info('Claude Code hooks disabled by config (hooks.enabled = false)');
+  } else if (claudeHooksInstalled(cwd)) {
+    out.ok('Claude Code hooks installed');
+  } else {
+    out.warn('Claude Code hooks not installed — retrieval/recording is not automatic.');
+    out.plain(
+      '    Run `substrata hook claude` to enable auto context injection + footprint reminders.',
+    );
+  }
+
+  // Recent footprint activity.
+  let footprints;
+  try {
+    footprints = await listFootprints(cwd);
+  } catch {
+    return; // already reported above as a parse error
+  }
+  if (footprints.length === 0) {
+    out.info('No footprints yet — memory will fill in as agents work.');
+  } else {
+    const cutoff = new Date(Date.now() - RECENT_ACTIVITY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const recent = footprints.filter((fp) => (fp.frontmatter.created_at ?? '') >= cutoff).length;
+    if (recent === 0) {
+      out.warn(
+        `No footprints in the last ${RECENT_ACTIVITY_DAYS} days — memory may be going stale.`,
+      );
+    } else {
+      out.ok(`${recent} footprint(s) in the last ${RECENT_ACTIVITY_DAYS} days`);
+    }
+  }
+
+  // Read:write ratio (the headline health metric from the analysis). Reads are
+  // only logged when telemetry is on, so the ratio is meaningless otherwise.
+  if (!config.telemetry.enabled) {
+    out.info(
+      'Telemetry disabled by config (telemetry.enabled = false) — skipping read:write ratio',
+    );
+    return;
+  }
+  const stats = readStats(cwd);
+  const writes = footprints.length;
+  if (writes > 0) {
+    const reads = stats.totalReads;
+    const ratio = reads / writes;
+    if (reads === 0) {
+      out.warn(
+        'read:write ratio is 0:1 — stored memory is never read back. Are the hooks installed?',
+      );
+    } else if (ratio < MIN_READ_WRITE_RATIO) {
+      out.warn(
+        `Low read:write ratio (${ratio.toFixed(2)}:1) — memory is written more than it is read.`,
+      );
+    } else {
+      out.ok(`read:write ratio ${ratio.toFixed(2)}:1`);
+    }
+  }
 }
 
 export function registerDoctorCommand(program: Command): void {
