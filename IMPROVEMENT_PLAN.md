@@ -98,10 +98,12 @@ retrieval/recording을 모델 의존에서 빼내 **결정론적 자동화**로 
 
 > 구현 메모: 로깅은 best-effort(에러 swallow → read/훅을 절대 깨지 않음). `telemetry.enabled`/`store_queries`로 비활성화·카운트전용 가능. 로그는 로컬+gitignore, 외부 전송 없음. 신규 테스트 8개(search 5 / cli 3).
 
-**M3: 품질 (P2) + 운영 (P3)**
-- [ ] 하이브리드(시맨틱) 검색 옵션
-- [ ] decay/supersede 정리
-- [ ] `doctor` 건강성 경고 확장
+**M3: 품질 (P2) + 운영 (P3)** ✅ 대부분 구현 (시맨틱 검색은 보류)
+- [ ] 하이브리드(시맨틱) 검색 옵션 — **보류(별도 PR)**. 임베딩 provider 선택이 의존성·비용·네트워크를 좌우하는 결정이라, fake 시맨틱이나 미검증 네트워크 코드를 섞기보다 별도로 진행. (현 BM25 검색은 그대로 유지)
+- [x] decay/supersede 정리 — related_to_file에 이웃(같은 디렉터리) 파일 확장(`includeNeighbors`, 기본 on); `context`/MCP/훅은 이미 `excludeSuperseded` 기본 on + 랭킹의 recency decay로 stale 억제; `gc`로 중복/구식 정리 + `gc --auto-supersede`
+- [x] `doctor` 건강성 경고 확장 — 훅 미설치 / 최근 14일 footprint 0건 / read:write 비율(0:1·임계 미달) 경고 (M2 텔레메트리 기반, 수동 분석 자동화)
+
+> 구현 메모: `substrata gc [--auto-supersede] [--stale-days] [--json]` 추가(footprint는 append-only 커밋 이력이라 **삭제하지 않고** 중복 링크/리포트만). doctor 경고는 exit code에 영향 없음(경고일 뿐). 신규 테스트 9개(search 3 / cli 6).
 
 ---
 
@@ -127,6 +129,12 @@ M1 배포 후 같은 transcript 분석을 재실행해 다음을 확인:
 
 ## 부록 A — 현재 CLI 표면(참고)
 
-기존 명령: `add, context, search, list, show, supersede, memory, index, init, install, mcp, hook(pre-commit secret 전용), doctor, run, update`
-MCP 도구: `substrata_add, substrata_context, substrata_search, substrata_list_recent, substrata_related_to_file`
-설정(`.substrata/config.yml`): `search.default_limit=8`, `search.max_context_tokens=1600`, `security.redact=true`, `agent.require_footprint_after_non_trivial_work=true`(미enforce)
+기존 명령: `add, context, search, list, show, supersede, memory, index, init, mcp, hook, doctor, upgrade`
+M1~M3로 추가된 표면:
+- 명령: `hook claude [--remove]`, `hook session-start|prompt-submit|session-end`(런타임), `stats [--days|--top|--json]`, `gc [--auto-supersede|--stale-days|--json]`
+- `init` 플래그: `--claude-hooks` / `--no-claude-hooks`
+- 설정(`.substrata/config.yml`): `telemetry.{enabled, store_queries}`, `hooks.{enabled, inject_context, max_context_tokens, min_score, remind_on_stop, non_trivial_threshold}`
+- `agent.require_footprint_after_non_trivial_work`는 이제 session-end 훅이 enforce(메인 Stop, 비자명 작업 시 1회)
+
+MCP 도구: `substrata_add, substrata_context, substrata_search, substrata_list_recent, substrata_related_to_file` (모든 read 도구가 access_log에 기록; related_to_file는 이웃 파일까지 확장)
+설정 기존값: `search.default_limit=8`, `search.max_context_tokens=1600`, `security.redact=true`

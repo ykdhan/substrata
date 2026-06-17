@@ -15,6 +15,11 @@ export type SearchOptions = {
   tags?: string[];
   /** Drop superseded AND deprecated docs entirely. */
   excludeSuperseded?: boolean;
+  /**
+   * For `getRelatedToFile`: also surface footprints touching *neighbor* files
+   * (siblings in the same directory), not just the exact file. Default on.
+   */
+  includeNeighbors?: boolean;
 };
 
 const DEFAULT_LIMIT = 8;
@@ -26,6 +31,19 @@ const DEFAULT_LIMIT = 8;
  * a good text match before the ×1.5 file-overlap boost is applied.
  */
 const FILE_HIT_BM25 = -10;
+
+/**
+ * Baseline relevance for a NEIGHBOR hit (a doc touching a sibling file in the
+ * same directory). Weaker than a direct file hit so exact matches always rank
+ * first, but strong enough to surface relevant nearby work.
+ */
+const NEIGHBOR_BM25 = -4;
+
+/** Posix dirname: the path up to (not including) the last slash, else "". */
+function posixDir(p: string): string {
+  const i = p.lastIndexOf('/');
+  return i === -1 ? '' : p.slice(0, i);
+}
 
 /** Row joined from documents + the FTS match. */
 type JoinedRow = {
@@ -234,6 +252,30 @@ export async function getRelatedToFile(
       });
       for (const r of ftsResults) {
         if (!byId.has(r.id)) byId.set(r.id, r);
+      }
+    }
+
+    // Neighbor pass: docs touching a sibling file in the same directory. Cheap
+    // structural signal that broadens recall to nearby work (plan P2). Filtered
+    // in JS so path matching is exact (no LIKE wildcard surprises).
+    if (options.includeNeighbors !== false) {
+      const dir = posixDir(posixPath);
+      const allRows = db
+        .prepare(
+          `SELECT
+             d.id, d.type, d.title, d.file_path, d.status,
+             d.created_at, d.updated_at, d.tags_json, d.files_json, d.work_type
+           FROM documents d`,
+        )
+        .all() as Omit<JoinedRow, 'bm25' | 'snippet'>[];
+
+      for (const row of allRows) {
+        if (byId.has(row.id)) continue;
+        const files = parseJsonArray(row.files_json);
+        const isNeighbor = files.some((f) => f !== posixPath && posixDir(f) === dir);
+        if (!isNeighbor) continue;
+        const joined: JoinedRow = { ...row, bm25: NEIGHBOR_BM25, snippet: '' };
+        byId.set(row.id, rowToResult(joined, []));
       }
     }
 

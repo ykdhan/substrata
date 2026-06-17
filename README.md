@@ -140,6 +140,11 @@ telemetry:
   store_queries: true  # set false to keep counts but not the query/prompt text
 ```
 
+`substrata doctor` also surfaces these as health warnings (hooks not installed,
+no recent footprints, a low read:write ratio), and `substrata gc` reports
+duplicate/stale footprints — `gc --auto-supersede` links older duplicates to the
+newest so retrieval only surfaces the current one.
+
 ### Troubleshooting `better-sqlite3`
 
 Substrata uses `better-sqlite3` for the local FTS search index. It's a native module and can be tricky to install in some environments (Node version mismatch, ARM architecture, corporate proxy, etc.).
@@ -189,6 +194,7 @@ If installation fails during `npm install` or `pnpm install`:
 | `index`              | Build or rebuild the local search index                                                                |
 | `doctor`             | Verify repository setup                                                                                |
 | `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log      |
+| `gc`                 | Report duplicate/stale footprints; `--auto-supersede` links older duplicates to the newest             |
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                      |
 | `hook install`       | Install a pre-commit secret scan hook (optional)                                                       |

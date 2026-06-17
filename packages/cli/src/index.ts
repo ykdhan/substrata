@@ -4,6 +4,7 @@ import pc from 'picocolors';
 import { registerAddCommand } from './commands/add';
 import { registerContextCommand } from './commands/context';
 import { registerDoctorCommand } from './commands/doctor';
+import { registerGcCommand } from './commands/gc';
 import { registerHookCommand } from './commands/hook';
 import { registerIndexCommand } from './commands/index';
 import { registerInitCommand } from './commands/init';
@@ -50,6 +51,7 @@ export function buildProgram(): Command {
   registerDoctorCommand(program);
   registerSupersedeCommand(program);
   registerStatsCommand(program);
+  registerGcCommand(program);
   registerMemoryUpdateCommand(program);
   registerHookCommand(program);
   registerUpgradeCommand(program);

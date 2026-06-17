@@ -69,6 +69,13 @@ function buildGroup(subcommand: string[]): HookGroup {
   return { hooks: [{ type: 'command', command: [...CLI_INVOCATION, ...subcommand].join(' ') }] };
 }
 
+/** True when at least one Substrata-managed lifecycle hook is present. */
+export function claudeHooksInstalled(cwd: string): boolean {
+  const { settings } = readSettings(settingsPath(cwd));
+  const hooks = settings.hooks ?? {};
+  return Object.values(hooks).some((groups) => (groups ?? []).some(isSubstrataGroup));
+}
+
 /**
  * Install or remove the Substrata lifecycle hooks. With `remove: true` the
  * managed entries are stripped and nothing is added. Idempotent: re-running with

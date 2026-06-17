@@ -93,5 +93,5 @@ export { GITIGNORE_LINES, ensureGitignore } from './setup/gitignore';
 export { writeShellEnv } from './setup/shellrc';
 export { AGENTS_MD_SECTION, upsertAgentsMd } from './setup/agents-md';
 export { installSecretHook } from './setup/hook';
-export { installClaudeHooks } from './setup/claude-hooks';
+export { installClaudeHooks, claudeHooksInstalled } from './setup/claude-hooks';
 export { hasEffectiveChanges, renderPlan, summarizePlan } from './setup/plan';
