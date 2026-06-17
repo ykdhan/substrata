@@ -12,6 +12,7 @@ import { registerMcpCommand } from './commands/mcp';
 import { registerMemoryUpdateCommand } from './commands/memory-update';
 import { registerSearchCommand } from './commands/search';
 import { registerShowCommand } from './commands/show';
+import { registerStatsCommand } from './commands/stats';
 import { registerSupersedeCommand } from './commands/supersede';
 import { registerUpgradeCommand } from './commands/upgrade';
 import { CliError, out } from './util';
@@ -48,6 +49,7 @@ export function buildProgram(): Command {
   registerShowCommand(program);
   registerDoctorCommand(program);
   registerSupersedeCommand(program);
+  registerStatsCommand(program);
   registerMemoryUpdateCommand(program);
   registerHookCommand(program);
   registerUpgradeCommand(program);

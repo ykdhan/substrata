@@ -25,3 +25,6 @@ export type { RankInput } from './ranking';
 export { SCHEMA_VERSION, applySchema } from './schema';
 export { openIndexDb, closeDb, indexDbExists } from './sqlite';
 export type { OpenIndexDbOptions } from './sqlite';
+
+export { logAccess, readStats } from './telemetry';
+export type { AccessEntry, AccessOp, AccessSource, AccessStats } from './telemetry';

@@ -5,6 +5,7 @@ import { search } from '@substrata/search';
 import { z } from 'zod';
 
 import { ensureIndexFresh } from './search';
+import { recordRead } from './telemetry';
 
 /** Raw zod shape for the substrata_context tool input. */
 export const contextInputShape = {
@@ -89,5 +90,13 @@ export async function runContext(
     limit: config.search.default_limit,
   });
 
-  return assembleContext(results, maxTokens);
+  const assembled = assembleContext(results, maxTokens);
+  await recordRead(cwd, {
+    op: 'context',
+    query: input.task,
+    resultCount: assembled.sources.length,
+    returnedIds: assembled.sources.map((s) => s.id),
+    source: 'mcp',
+  });
+  return assembled;
 }

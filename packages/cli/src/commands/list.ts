@@ -2,7 +2,7 @@ import { listFootprints, type Footprint } from '@substrata/core';
 import type { Command } from 'commander';
 
 import { renderFootprintList } from '../render/table';
-import { out, requireConfig, resolveCwd } from '../util';
+import { out, recordAccess, requireConfig, resolveCwd } from '../util';
 
 /**
  * `substrata list` — list footprints filtered by tag/file/since. No index needed;
@@ -33,10 +33,17 @@ export function registerListCommand(program: Command): void {
     .option('--json', 'Output JSON')
     .action(async (opts: ListOptions, command: Command) => {
       const cwd = resolveCwd(command.parent?.opts());
-      await requireConfig(cwd);
+      const config = await requireConfig(cwd);
 
       const all = await listFootprints(cwd);
       const filtered = all.filter((fp) => matches(fp, opts));
+
+      recordAccess(cwd, config, {
+        op: 'list',
+        resultCount: filtered.length,
+        returnedIds: filtered.map((fp) => fp.frontmatter.id),
+        source: 'cli',
+      });
 
       if (opts.json) {
         const rows = filtered.map((fp) => ({

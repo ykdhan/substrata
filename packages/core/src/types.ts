@@ -159,6 +159,15 @@ export type SubstrataConfig = {
     default_model?: string;
     require_footprint_after_non_trivial_work: boolean;
   };
+  telemetry: {
+    /** Record read/write access locally so `substrata stats` can report usage. */
+    enabled: boolean;
+    /**
+     * Store the query text alongside each read. Set false to keep only counts
+     * (prompts can be sensitive). The log is local + gitignored regardless.
+     */
+    store_queries: boolean;
+  };
   hooks: {
     /** Master switch for the Claude Code lifecycle hooks. */
     enabled: boolean;

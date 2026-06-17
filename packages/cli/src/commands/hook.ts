@@ -122,7 +122,7 @@ function registerLifecycleHandlers(hook: Command): void {
         await readHookPayload();
         const config = await loadConfig(cwd);
         if (!config.hooks.enabled || !config.hooks.inject_context) return;
-        const digest = await recentDigest(cwd);
+        const digest = await recentDigest(cwd, config);
         emitContext('SessionStart', digest ?? undefined);
       });
     });

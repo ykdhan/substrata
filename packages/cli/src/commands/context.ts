@@ -3,7 +3,7 @@ import { search } from '@substrata/search';
 import type { Command } from 'commander';
 
 import { renderContext } from '../render/context';
-import { out, requireConfig, resolveCwd } from '../util';
+import { out, recordAccess, requireConfig, resolveCwd } from '../util';
 
 import { ensureFreshIndex } from './auto-index';
 
@@ -55,6 +55,14 @@ export function registerContextCommand(program: Command): void {
       ]);
 
       const rendered = renderContext(results, footprints, memory, budget);
+
+      recordAccess(cwd, config, {
+        op: 'context',
+        query: task,
+        resultCount: rendered.sources.length,
+        returnedIds: rendered.sources.map((s) => s.id),
+        source: 'cli',
+      });
 
       if (opts.json) {
         out.plain(JSON.stringify({ context: rendered.text, sources: rendered.sources }, null, 2));

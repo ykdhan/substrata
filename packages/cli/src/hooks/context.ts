@@ -8,6 +8,7 @@ import { search } from '@substrata/search';
 
 import { ensureFreshIndex } from '../commands/auto-index';
 import { renderContext } from '../render/context';
+import { recordAccess } from '../util';
 
 /**
  * Context builders shared by the lifecycle hooks. Kept separate from the
@@ -51,6 +52,15 @@ export async function buildHookContext(
 
   const rendered = renderContext(relevant, footprints, memory, hookBudget(config));
   if (rendered.sources.length === 0) return null;
+
+  recordAccess(cwd, config, {
+    op: 'context',
+    query: opts.query,
+    resultCount: rendered.sources.length,
+    returnedIds: rendered.sources.map((s) => s.id),
+    source: 'hook',
+  });
+
   return rendered.text;
 }
 
@@ -70,13 +80,25 @@ function footprintGist(fp: Footprint): string {
  * most recent (non-superseded) footprints, so a fresh session knows project
  * memory exists and what was last decided. Returns null when there are none.
  */
-export async function recentDigest(cwd: string, limit = 3): Promise<string | null> {
+export async function recentDigest(
+  cwd: string,
+  config: SubstrataConfig,
+  limit = 3,
+): Promise<string | null> {
   const footprints = (await listFootprints(cwd)).filter(
     (fp) => fp.frontmatter.status !== 'superseded' && fp.frontmatter.status !== 'deprecated',
   );
   if (footprints.length === 0) return null;
 
-  const lines = footprints.slice(0, limit).map((fp, i) => `${i + 1}. ${footprintGist(fp)}`);
+  const chosen = footprints.slice(0, limit);
+  recordAccess(cwd, config, {
+    op: 'list',
+    resultCount: chosen.length,
+    returnedIds: chosen.map((fp) => fp.frontmatter.id),
+    source: 'hook',
+  });
+
+  const lines = chosen.map((fp, i) => `${i + 1}. ${footprintGist(fp)}`);
   const more = footprints.length > limit ? `\n(+${footprints.length - limit} more — search with substrata_context / \`substrata context\`.)` : '';
   return `Recent Substrata project memory:\n\n${lines.join('\n')}${more}`;
 }

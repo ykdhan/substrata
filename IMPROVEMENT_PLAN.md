@@ -91,10 +91,12 @@ retrieval/recording을 모델 의존에서 빼내 **결정론적 자동화**로 
 
 > 구현 메모: 모든 런타임 핸들러는 **fail-open**(에러 시 조용히 exit 0)으로 Claude Code 세션을 절대 막지 않음. session-end는 메인 Stop에서만, `stop_hook_active` 가드로 1회만 nudge하며 SubagentStop은 폭증 방지를 위해 억제. 신규 테스트 13개(core 6 / cli 7) 추가.
 
-**M2: 측정 (P1)** — M1 효과 검증용으로 바로 뒤따라야 함
-- [ ] `access_log` 스키마 + 마이그레이션
-- [ ] read 경로에 logging 삽입
-- [ ] `substrata stats` 명령
+**M2: 측정 (P1)** — M1 효과 검증용으로 바로 뒤따라야 함 ✅ 구현 완료
+- [x] `access_log` 스키마 (별도 DB `.substrata/index/access.sqlite` — 재색인에도 보존, `packages/search/src/telemetry.ts`)
+- [x] read 경로에 logging 삽입 (CLI `context`/`search`/`list`, 훅 주입, MCP `context`/`search`/`list_recent`/`related_to_file` — source별 `cli`/`mcp`/`hook` 구분)
+- [x] `substrata stats` 명령 (`--days`/`--top`/`--json`: read:write 비율, op/source별, 가장 많이/한 번도 참조 안 된 footprint)
+
+> 구현 메모: 로깅은 best-effort(에러 swallow → read/훅을 절대 깨지 않음). `telemetry.enabled`/`store_queries`로 비활성화·카운트전용 가능. 로그는 로컬+gitignore, 외부 전송 없음. 신규 테스트 8개(search 5 / cli 3).
 
 **M3: 품질 (P2) + 운영 (P3)**
 - [ ] 하이브리드(시맨틱) 검색 옵션

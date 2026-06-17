@@ -2,7 +2,7 @@ import { search } from '@substrata/search';
 import type { Command } from 'commander';
 
 import { renderSearchResults } from '../render/table';
-import { out, requireConfig, resolveCwd } from '../util';
+import { out, recordAccess, requireConfig, resolveCwd } from '../util';
 
 import { ensureFreshIndex } from './auto-index';
 
@@ -49,6 +49,14 @@ export function registerSearchCommand(program: Command): void {
         files: opts.files && opts.files.length > 0 ? opts.files : undefined,
         tags: opts.tag && opts.tag.length > 0 ? opts.tag : undefined,
         excludeSuperseded: opts.excludeSuperseded,
+      });
+
+      recordAccess(cwd, config, {
+        op: 'search',
+        query,
+        resultCount: results.length,
+        returnedIds: results.map((r) => r.id),
+        source: 'cli',
       });
 
       if (opts.json) {

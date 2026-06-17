@@ -33,6 +33,7 @@ export {
 
 export {
   SUBSTRATA_DIRNAME,
+  accessLogPath,
   configPath,
   footprintFilePath,
   footprintRelativePath,

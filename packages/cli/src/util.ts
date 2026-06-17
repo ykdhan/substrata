@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { loadConfig, type SubstrataConfig } from '@substrata/core';
+import { logAccess, type AccessEntry } from '@substrata/search';
 import pc from 'picocolors';
 
 /**
@@ -109,6 +110,15 @@ export async function resolveAttribution(
   }
 
   return { actor, model, requester };
+}
+
+/**
+ * Record a read in the local access log when telemetry is enabled. Honors
+ * `store_queries` and never throws (logging is best-effort).
+ */
+export function recordAccess(cwd: string, config: SubstrataConfig, entry: AccessEntry): void {
+  if (!config.telemetry.enabled) return;
+  logAccess(cwd, entry, { storeQuery: config.telemetry.store_queries });
 }
 
 /** Load config, mapping a missing/invalid config to a friendly CliError. */

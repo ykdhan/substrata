@@ -108,6 +108,38 @@ hooks:
 Hooks fail open: if anything goes wrong (no config, parse error, slow disk) the
 handler stays silent and exits 0 — a Substrata hook never blocks your session.
 
+### Measuring whether memory is read (`substrata stats`)
+
+Footprints used to be write-only in practice: there was no way to tell whether
+they were ever read back. Each retrieval (`context` / `search` / `list` /
+`related`, from the CLI, MCP tools, or hooks) now appends one row to a local,
+gitignored access log, and `substrata stats` reports on it:
+
+```bash
+substrata stats              # all-time read:write ratio, by op/source, hot/cold footprints
+substrata stats --days 7     # trailing window
+substrata stats --json       # machine-readable
+```
+
+```
+Substrata usage (all time):
+
+  reads:writes      2.00:1  (2 reads / 1 writes)
+  footprints        12 total, 3 never referenced
+  ...
+```
+
+The read:write ratio is the headline health metric — a healthy repo reads its
+memory more often than it writes it. The log lives in `.substrata/index/` (a
+separate DB from the search index, so rebuilds don't wipe it), is never
+transmitted, and can be turned off or made count-only:
+
+```yaml
+telemetry:
+  enabled: true        # set false to disable logging entirely
+  store_queries: true  # set false to keep counts but not the query/prompt text
+```
+
 ### Troubleshooting `better-sqlite3`
 
 Substrata uses `better-sqlite3` for the local FTS search index. It's a native module and can be tricky to install in some environments (Node version mismatch, ARM architecture, corporate proxy, etc.).
@@ -156,6 +188,7 @@ If installation fails during `npm install` or `pnpm install`:
 | `show <id>`          | Display one footprint in full                                                                          |
 | `index`              | Build or rebuild the local search index                                                                |
 | `doctor`             | Verify repository setup                                                                                |
+| `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log      |
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                      |
 | `hook install`       | Install a pre-commit secret scan hook (optional)                                                       |

@@ -38,7 +38,7 @@ describe('hook claude (settings.json installer)', () => {
 
 describe('recentDigest', () => {
   it('returns null with no footprints and a digest after seeding', async () => {
-    expect(await recentDigest(cwd)).toBeNull();
+    expect(await recentDigest(cwd, await loadConfig(cwd))).toBeNull();
 
     await runCommand(cwd, [
       'add',
@@ -50,7 +50,7 @@ describe('recentDigest', () => {
       'Adopt keyset pagination over OFFSET',
     ]);
 
-    const digest = await recentDigest(cwd);
+    const digest = await recentDigest(cwd, await loadConfig(cwd));
     expect(digest).toContain('Recent Substrata project memory');
     expect(digest).toContain('Use cursor pagination');
     expect(digest).toContain('keyset pagination');
@@ -65,7 +65,7 @@ describe('recentDigest', () => {
     const newId = fps.find((f) => f.title === 'New way')!.frontmatter.id;
     await runCommand(cwd, ['supersede', oldId, '--by', newId]);
 
-    const digest = await recentDigest(cwd);
+    const digest = await recentDigest(cwd, await loadConfig(cwd));
     expect(digest).not.toContain('Old way');
     expect(digest).toContain('New way');
   });

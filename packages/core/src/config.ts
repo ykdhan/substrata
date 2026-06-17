@@ -63,6 +63,10 @@ export const defaultConfig: SubstrataConfig = {
     default_actor: 'unknown-agent',
     require_footprint_after_non_trivial_work: true,
   },
+  telemetry: {
+    enabled: true,
+    store_queries: true,
+  },
   hooks: {
     enabled: true,
     inject_context: true,
