@@ -137,7 +137,7 @@ transmitted, and can be turned off or made count-only:
 ```yaml
 telemetry:
   enabled: true # set false to disable logging entirely
-  store_queries: true # set false to keep counts but not the query/prompt text
+  store_queries: false # opt-in: set true to also keep the query/prompt text (secret patterns are redacted first)
 ```
 
 `substrata doctor` also surfaces these as health warnings (hooks not installed,

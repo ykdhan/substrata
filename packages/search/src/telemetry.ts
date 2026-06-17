@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { accessLogPath } from '@substrata/core';
+import { accessLogPath, redactText } from '@substrata/core';
 import Database from 'better-sqlite3';
 
 /**
@@ -72,8 +72,12 @@ export function logAccess(
   try {
     const db = openAccessDb(cwd);
     try {
+      // Redact secret-pattern matches before persisting, then cap length. Query
+      // storage is opt-in (telemetry.store_queries) and this is defense in depth.
       const query =
-        opts.storeQuery !== false && entry.query ? entry.query.slice(0, MAX_QUERY_CHARS) : null;
+        opts.storeQuery !== false && entry.query
+          ? redactText(entry.query).slice(0, MAX_QUERY_CHARS)
+          : null;
       db.prepare(
         `INSERT INTO access_log (ts, op, query, result_count, returned_ids, source)
          VALUES (@ts, @op, @query, @resultCount, @returnedIds, @source)`,

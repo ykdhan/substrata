@@ -44,7 +44,7 @@ describe('stats', () => {
     expect(stats.totalFootprints).toBe(2);
     // The pagination footprint was returned by search+context+list, so it has hits.
     expect(stats.mostReferenced[0].title).toBe('Use cursor pagination');
-    expect(stats.mostReferenced[0].hits).toBeGreaterThanOrEqual(2);
+    expect(stats.mostReferenced[0].hits).toBe(3);
   });
 
   it('human output nudges when there are no reads yet', async () => {

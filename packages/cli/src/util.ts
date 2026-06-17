@@ -118,7 +118,11 @@ export async function resolveAttribution(
  */
 export function recordAccess(cwd: string, config: SubstrataConfig, entry: AccessEntry): void {
   if (!config.telemetry.enabled) return;
-  logAccess(cwd, entry, { storeQuery: config.telemetry.store_queries });
+  try {
+    logAccess(cwd, entry, { storeQuery: config.telemetry.store_queries });
+  } catch {
+    // Best-effort: telemetry failures must never block a CLI command.
+  }
 }
 
 /** Load config, mapping a missing/invalid config to a friendly CliError. */

@@ -35,11 +35,18 @@ const HOOK_EVENTS: Record<string, string[]> = {
   SubagentStop: ['session-end', '--subagent'],
 };
 
+/**
+ * Matches exactly the lifecycle commands this module writes (see CLI_INVOCATION
+ * and HOOK_EVENTS) and nothing else. Kept narrow on purpose: a broad pattern
+ * could classify a user's own `substrata … hook` command as managed and strip
+ * it during install/remove.
+ */
+const MANAGED_HOOK_COMMAND =
+  /^npx\s+-y\s+substrata-cli\s+hook\s+(?:session-start|prompt-submit|session-end)(?:\s+--subagent)?$/;
+
 /** True when a hook group is a Substrata-managed lifecycle hook. */
 function isSubstrataGroup(group: HookGroup): boolean {
-  return (group.hooks ?? []).some((h) =>
-    /\bsubstrata(-cli)?\b[\s\S]*\bhook\b/.test(h.command ?? ''),
-  );
+  return (group.hooks ?? []).some((h) => MANAGED_HOOK_COMMAND.test((h.command ?? '').trim()));
 }
 
 function settingsPath(cwd: string): string {
@@ -55,15 +62,25 @@ function isSymlink(filePath: string): boolean {
 }
 
 function readSettings(filePath: string): { settings: ClaudeSettings; existed: boolean } {
+  let raw: string;
   try {
-    const raw = readFileSync(filePath, 'utf8');
+    raw = readFileSync(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { settings: {}, existed: false };
+    }
+    throw error;
+  }
+  // The file exists. If it isn't valid JSON we must NOT treat it as missing —
+  // overwriting would clobber the user's (recoverable) settings. Refuse instead.
+  try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return { settings: parsed as ClaudeSettings, existed: true };
     }
     return { settings: {}, existed: true };
   } catch {
-    return { settings: {}, existed: false };
+    throw new Error(`Invalid JSON in ${filePath}; refusing to modify it.`);
   }
 }
 
@@ -71,9 +88,16 @@ function buildGroup(subcommand: string[]): HookGroup {
   return { hooks: [{ type: 'command', command: [...CLI_INVOCATION, ...subcommand].join(' ') }] };
 }
 
-/** True when at least one Substrata-managed lifecycle hook is present. */
+/** True when at least one Substrata-managed lifecycle hook is present. A
+ * malformed settings file is reported as "not installed" rather than thrown:
+ * this is a read-only probe (e.g. `substrata doctor`), not a mutation. */
 export function claudeHooksInstalled(cwd: string): boolean {
-  const { settings } = readSettings(settingsPath(cwd));
+  let settings: ClaudeSettings;
+  try {
+    ({ settings } = readSettings(settingsPath(cwd)));
+  } catch {
+    return false;
+  }
   const hooks = settings.hooks ?? {};
   return Object.values(hooks).some((groups) => (groups ?? []).some(isSubstrataGroup));
 }

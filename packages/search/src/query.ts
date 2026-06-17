@@ -218,6 +218,12 @@ export async function getRelatedToFile(
   const posixPath = toPosix(filePath);
   const stem = path.basename(posixPath).replace(/\.[^.]+$/, '');
 
+  // `tags` is a hard filter (see SearchOptions). The SQL-driven FTS fallback
+  // already honors it; the file-hit and neighbor passes filter in JS below.
+  const tagFilter = options.tags && options.tags.length > 0 ? options.tags : null;
+  const passesTagFilter = (tagsJson: string): boolean =>
+    !tagFilter || parseJsonArray(tagsJson).some((t) => tagFilter.includes(t));
+
   const db = openIndexDb(options.cwd, { readonly: true });
   try {
     // Hard file matches: docs whose files_touched contain the exact path.
@@ -235,6 +241,7 @@ export async function getRelatedToFile(
 
     const byId = new Map<string, SearchResult>();
     for (const row of fileRows) {
+      if (!passesTagFilter(row.tags_json)) continue;
       const joined: JoinedRow = { ...row, bm25: FILE_HIT_BM25, snippet: '' };
       // The file hit counts as overlap automatically: queryFiles includes
       // posixPath, so rowToResult applies the ×1.5 boost via the ranker.
@@ -271,6 +278,7 @@ export async function getRelatedToFile(
 
       for (const row of allRows) {
         if (byId.has(row.id)) continue;
+        if (!passesTagFilter(row.tags_json)) continue;
         const files = parseJsonArray(row.files_json);
         const isNeighbor = files.some((f) => f !== posixPath && posixDir(f) === dir);
         if (!isNeighbor) continue;

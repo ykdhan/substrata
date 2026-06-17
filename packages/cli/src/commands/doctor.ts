@@ -99,8 +99,20 @@ export async function runDoctor(cwd: string): Promise<number> {
  * surface risks without failing `doctor`.
  */
 async function reportHealth(cwd: string): Promise<void> {
-  // Lifecycle hooks installed?
-  if (claudeHooksInstalled(cwd)) {
+  // Health checks are advisory and must respect intent: if a feature is turned
+  // off in config, warning about it would be noise. Load best-effort — a broken
+  // config is already reported as a hard failure above.
+  let config;
+  try {
+    config = await loadConfig(cwd);
+  } catch {
+    return;
+  }
+
+  // Lifecycle hooks installed? Only relevant when hooks are enabled.
+  if (!config.hooks.enabled) {
+    out.info('Claude Code hooks disabled by config (hooks.enabled = false)');
+  } else if (claudeHooksInstalled(cwd)) {
     out.ok('Claude Code hooks installed');
   } else {
     out.warn('Claude Code hooks not installed — retrieval/recording is not automatic.');
@@ -130,7 +142,14 @@ async function reportHealth(cwd: string): Promise<void> {
     }
   }
 
-  // Read:write ratio (the headline health metric from the analysis).
+  // Read:write ratio (the headline health metric from the analysis). Reads are
+  // only logged when telemetry is on, so the ratio is meaningless otherwise.
+  if (!config.telemetry.enabled) {
+    out.info(
+      'Telemetry disabled by config (telemetry.enabled = false) — skipping read:write ratio',
+    );
+    return;
+  }
   const stats = readStats(cwd);
   const writes = footprints.length;
   if (writes > 0) {

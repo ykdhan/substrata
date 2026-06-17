@@ -65,7 +65,7 @@ export const defaultConfig: SubstrataConfig = {
   },
   telemetry: {
     enabled: true,
-    store_queries: true,
+    store_queries: false,
   },
   hooks: {
     enabled: true,

@@ -64,4 +64,12 @@ describe('getRelatedToFile neighbor expansion', () => {
     expect(titles).toContain('Edit the user service');
     expect(titles).not.toContain('Edit the order service');
   });
+
+  it('honors the tags hard-filter for exact and neighbor hits', async () => {
+    // Only the `user`-tagged footprint may pass; the `order` neighbor is filtered.
+    const results = await getRelatedToFile('src/services/user.ts', { cwd, tags: ['user'] });
+    const titles = results.map((r) => r.title);
+    expect(titles).toContain('Edit the user service');
+    expect(titles).not.toContain('Edit the order service');
+  });
 });

@@ -40,7 +40,8 @@ export function registerStatsCommand(program: Command): void {
       await requireConfig(cwd);
 
       const sinceDays = opts.days ? Number(opts.days) : undefined;
-      const top = opts.top ? Number(opts.top) : 5;
+      const parsedTop = opts.top ? Number(opts.top) : 5;
+      const top = Number.isFinite(parsedTop) ? Math.max(0, Math.trunc(parsedTop)) : 5;
       const stats = readStats(cwd, {
         sinceDays: Number.isFinite(sinceDays) ? sinceDays : undefined,
       });
@@ -55,7 +56,7 @@ export function registerStatsCommand(program: Command): void {
       const neverReferenced = footprints.filter((fp) => !hitIds.has(fp.frontmatter.id));
 
       const mostReferenced = stats.hitsById
-        .slice(0, Number.isFinite(top) ? top : 5)
+        .slice(0, top)
         .map((h) => ({ id: h.id, hits: h.hits, title: titleById.get(h.id) ?? '(unknown)' }));
 
       if (opts.json) {

@@ -95,4 +95,34 @@ describe('installClaudeHooks', () => {
     const result = installClaudeHooks(cwd, false, { remove: true });
     expect(result.action).toBe('skip');
   });
+
+  it('refuses to overwrite a settings file with invalid JSON', () => {
+    mkdirSync(path.join(cwd, '.claude'), { recursive: true });
+    const original = '{ this is not valid json ';
+    writeFileSync(settingsPath(cwd), original, 'utf8');
+    expect(() => installClaudeHooks(cwd, false)).toThrow(/Invalid JSON/);
+    // The user's (recoverable) file is left exactly as it was.
+    expect(readFileSync(settingsPath(cwd), 'utf8')).toBe(original);
+  });
+
+  it("does not strip a user's own command that merely mentions substrata + hook", () => {
+    mkdirSync(path.join(cwd, '.claude'), { recursive: true });
+    const userCmd = 'substrata-cli hook session-start && echo done';
+    writeFileSync(
+      settingsPath(cwd),
+      JSON.stringify({
+        hooks: { SessionStart: [{ hooks: [{ type: 'command', command: userCmd }] }] },
+      }),
+      'utf8',
+    );
+    installClaudeHooks(cwd, false);
+    const removed = installClaudeHooks(cwd, false, { remove: true });
+    expect(removed.action).toBe('update');
+    const json = JSON.parse(readFileSync(settingsPath(cwd), 'utf8'));
+    const cmds = json.hooks.SessionStart.map(
+      (g: { hooks: { command: string }[] }) => g.hooks[0]!.command,
+    );
+    // The user's near-miss command is preserved through install + remove.
+    expect(cmds).toEqual([userCmd]);
+  });
 });
