@@ -37,10 +37,14 @@ function duplicateClusters(footprints: Footprint[]): Footprint[][] {
     list.push(fp);
     groups.set(key, list);
   }
-  return [...groups.values()]
-    .filter((g) => g.length >= 2)
-    // Newest first within each cluster.
-    .map((g) => g.sort((a, b) => b.frontmatter.created_at.localeCompare(a.frontmatter.created_at)));
+  return (
+    [...groups.values()]
+      .filter((g) => g.length >= 2)
+      // Newest first within each cluster.
+      .map((g) =>
+        g.sort((a, b) => b.frontmatter.created_at.localeCompare(a.frontmatter.created_at)),
+      )
+  );
 }
 
 export function registerGcCommand(program: Command): void {
@@ -48,7 +52,10 @@ export function registerGcCommand(program: Command): void {
     .command('gc')
     .description('Report duplicate/stale footprints (and optionally link duplicates)')
     .option('--auto-supersede', 'Supersede older duplicates by the newest in each cluster')
-    .option('--stale-days <n>', `Age (days) past which a completed footprint is "stale" (default ${DEFAULT_STALE_DAYS})`)
+    .option(
+      '--stale-days <n>',
+      `Age (days) past which a completed footprint is "stale" (default ${DEFAULT_STALE_DAYS})`,
+    )
     .option('--json', 'Output JSON')
     .action(async (opts: GcOptions, command: Command) => {
       const cwd = resolveCwd(command.parent?.opts());
@@ -111,11 +118,15 @@ export function registerGcCommand(program: Command): void {
           out.plain(`  "${c[0]!.title}"`);
           c.forEach((fp, i) => {
             const tag = i === 0 ? 'keep ' : 'dup  ';
-            out.plain(`    ${tag} ${fp.frontmatter.id}  (${fp.frontmatter.created_at.slice(0, 10)})`);
+            out.plain(
+              `    ${tag} ${fp.frontmatter.id}  (${fp.frontmatter.created_at.slice(0, 10)})`,
+            );
           });
         }
         if (!opts.autoSupersede) {
-          out.plain('  Run `substrata gc --auto-supersede` to link older duplicates to the newest.');
+          out.plain(
+            '  Run `substrata gc --auto-supersede` to link older duplicates to the newest.',
+          );
         }
       }
 
@@ -134,7 +145,9 @@ export function registerGcCommand(program: Command): void {
 
       if (resolved.length > 0) {
         out.plain('');
-        out.info(`${resolved.length} already superseded/deprecated footprint(s) (excluded from retrieval).`);
+        out.info(
+          `${resolved.length} already superseded/deprecated footprint(s) (excluded from retrieval).`,
+        );
       }
     });
 }

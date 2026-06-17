@@ -45,10 +45,7 @@ export async function buildHookContext(
   const relevant = results.filter((r) => r.score >= config.hooks.min_score);
   if (relevant.length === 0) return null;
 
-  const [footprints, memory] = await Promise.all([
-    listFootprints(cwd),
-    listMemoryDocuments(cwd),
-  ]);
+  const [footprints, memory] = await Promise.all([listFootprints(cwd), listMemoryDocuments(cwd)]);
 
   const rendered = renderContext(relevant, footprints, memory, hookBudget(config));
   if (rendered.sources.length === 0) return null;
@@ -99,6 +96,9 @@ export async function recentDigest(
   });
 
   const lines = chosen.map((fp, i) => `${i + 1}. ${footprintGist(fp)}`);
-  const more = footprints.length > limit ? `\n(+${footprints.length - limit} more — search with substrata_context / \`substrata context\`.)` : '';
+  const more =
+    footprints.length > limit
+      ? `\n(+${footprints.length - limit} more — search with substrata_context / \`substrata context\`.)`
+      : '';
   return `Recent Substrata project memory:\n\n${lines.join('\n')}${more}`;
 }

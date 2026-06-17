@@ -73,9 +73,7 @@ export function logAccess(
     const db = openAccessDb(cwd);
     try {
       const query =
-        opts.storeQuery !== false && entry.query
-          ? entry.query.slice(0, MAX_QUERY_CHARS)
-          : null;
+        opts.storeQuery !== false && entry.query ? entry.query.slice(0, MAX_QUERY_CHARS) : null;
       db.prepare(
         `INSERT INTO access_log (ts, op, query, result_count, returned_ids, source)
          VALUES (@ts, @op, @query, @resultCount, @returnedIds, @source)`,

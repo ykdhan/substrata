@@ -37,7 +37,9 @@ const HOOK_EVENTS: Record<string, string[]> = {
 
 /** True when a hook group is a Substrata-managed lifecycle hook. */
 function isSubstrataGroup(group: HookGroup): boolean {
-  return (group.hooks ?? []).some((h) => /\bsubstrata(-cli)?\b[\s\S]*\bhook\b/.test(h.command ?? ''));
+  return (group.hooks ?? []).some((h) =>
+    /\bsubstrata(-cli)?\b[\s\S]*\bhook\b/.test(h.command ?? ''),
+  );
 }
 
 function settingsPath(cwd: string): string {
@@ -88,7 +90,11 @@ export function installClaudeHooks(
 ): ChangeResult {
   const filePath = settingsPath(cwd);
   if (isSymlink(filePath)) {
-    return { path: filePath, action: 'skip', description: 'refused: .claude/settings.json is a symlink' };
+    return {
+      path: filePath,
+      action: 'skip',
+      description: 'refused: .claude/settings.json is a symlink',
+    };
   }
 
   const { settings, existed } = readSettings(filePath);
@@ -112,7 +118,9 @@ export function installClaudeHooks(
     return {
       path: filePath,
       action: 'skip',
-      description: opts.remove ? 'Claude Code hooks not installed' : 'Claude Code hooks already installed',
+      description: opts.remove
+        ? 'Claude Code hooks not installed'
+        : 'Claude Code hooks already installed',
     };
   }
 

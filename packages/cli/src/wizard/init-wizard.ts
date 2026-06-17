@@ -198,7 +198,8 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
       : flags.claudeHooks === true
         ? true
         : await promptConfirm({
-            message: 'Install Claude Code lifecycle hooks (auto-inject memory + footprint reminder)?',
+            message:
+              'Install Claude Code lifecycle hooks (auto-inject memory + footprint reminder)?',
             defaultValue: claudeDetected,
           });
 

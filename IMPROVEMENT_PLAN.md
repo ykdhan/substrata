@@ -14,15 +14,15 @@ substrata는 **footprint를 저장(write)하는 데는 문제가 없지만, 저�
 
 ## 2. 측정으로 드러난 사실 (bridge-port, 34개 메인 세션 + 87개 서브에이전트 transcript 전수)
 
-| 항목 | 값 | 비고 |
-|---|---|---|
-| DB에 저장된 footprint | 3 | `.substrata/index/footprint.sqlite`, `integrity_check = ok` |
-| FTS 검색 정상 동작 | ✅ | `bot`→3, `recording`→3, `payment`→1 |
-| 모델의 `substrata_context` 호출 | **0** | 작업 전 관련기억 주입 — 0건 |
-| 모델의 `substrata_search` 호출 | **0** | |
-| 모델의 `substrata_related_to_file` 호출 | **0** | |
-| 모델의 `substrata_list_recent` 호출 | **1** | |
-| 모델의 `substrata_add` 호출(transcript상) | **0** | DB엔 3개 존재 → 외부 경로(CLI 등)로 기록된 것으로 추정 |
+| 항목                                      | 값    | 비고                                                        |
+| ----------------------------------------- | ----- | ----------------------------------------------------------- |
+| DB에 저장된 footprint                     | 3     | `.substrata/index/footprint.sqlite`, `integrity_check = ok` |
+| FTS 검색 정상 동작                        | ✅    | `bot`→3, `recording`→3, `payment`→1                         |
+| 모델의 `substrata_context` 호출           | **0** | 작업 전 관련기억 주입 — 0건                                 |
+| 모델의 `substrata_search` 호출            | **0** |                                                             |
+| 모델의 `substrata_related_to_file` 호출   | **0** |                                                             |
+| 모델의 `substrata_list_recent` 호출       | **1** |                                                             |
+| 모델의 `substrata_add` 호출(transcript상) | **0** | DB엔 3개 존재 → 외부 경로(CLI 등)로 기록된 것으로 추정      |
 
 > 측정 신뢰성: 동일한 `jq`(`type=="tool_use"`) 집계로 Agent 87회 / TaskUpdate 56회는 정확히 잡혔다. 즉 "substrata 호출 거의 0"은 측정 누락이 아니라 실제 사용 부재다. (초기에 grep으로 나온 "context 30, list_recent 40" 등은 매 세션 주입되는 **도구 목록 나열 텍스트**를 센 오탐이었음.)
 
@@ -52,6 +52,7 @@ retrieval/recording을 모델 의존에서 빼내 **결정론적 자동화**로 
 - **설치 UX**: `substrata install`이 MCP 등록뿐 아니라 `--hooks` 플래그(또는 기본값)로 `.claude/settings.json`의 `hooks` 블록을 idempotent하게 작성. 이미 있으면 skip(기존 `hook install`의 skip 패턴 재사용).
 
 **구현 메모**
+
 - 신규 서브커맨드: `substrata hook session-start`, `substrata hook prompt-submit`, `substrata hook session-end` (stdin으로 Claude Code hook payload 수신 → stdout으로 결과).
 - `packages/cli`에 hook payload 파서 + Claude Code hook 출력 포맷(`{ "hookSpecificOutput": { "additionalContext": "..." } }`) 어댑터 추가.
 - "비자명한 작업" 판정 휴리스틱: 편집된 파일 수 / 호출된 쓰기 도구 수 임계값(설정 가능).
@@ -83,6 +84,7 @@ retrieval/recording을 모델 의존에서 빼내 **결정론적 자동화**로 
 ## 5. 마일스톤 / 작업 분해
 
 **M1: 자동 루프 닫기 (P0)** — 가장 먼저, 단독으로도 가치 ✅ 구현 완료
+
 - [x] `hook session-start` / `prompt-submit` / `session-end` 서브커맨드 추가 (`packages/cli/src/commands/hook.ts`)
 - [x] Claude Code hook payload ↔ substrata I/O 어댑터 (`packages/cli/src/hooks/claude-code.ts`, `hooks/context.ts`)
 - [x] `.claude/settings.json` idempotent 작성: `substrata hook claude [--remove]` + init 위저드 통합 (`packages/core/src/setup/claude-hooks.ts`). 기존 init 레포 retrofit 경로 제공.
@@ -92,6 +94,7 @@ retrieval/recording을 모델 의존에서 빼내 **결정론적 자동화**로 
 > 구현 메모: 모든 런타임 핸들러는 **fail-open**(에러 시 조용히 exit 0)으로 Claude Code 세션을 절대 막지 않음. session-end는 메인 Stop에서만, `stop_hook_active` 가드로 1회만 nudge하며 SubagentStop은 폭증 방지를 위해 억제. 신규 테스트 13개(core 6 / cli 7) 추가.
 
 **M2: 측정 (P1)** — M1 효과 검증용으로 바로 뒤따라야 함 ✅ 구현 완료
+
 - [x] `access_log` 스키마 (별도 DB `.substrata/index/access.sqlite` — 재색인에도 보존, `packages/search/src/telemetry.ts`)
 - [x] read 경로에 logging 삽입 (CLI `context`/`search`/`list`, 훅 주입, MCP `context`/`search`/`list_recent`/`related_to_file` — source별 `cli`/`mcp`/`hook` 구분)
 - [x] `substrata stats` 명령 (`--days`/`--top`/`--json`: read:write 비율, op/source별, 가장 많이/한 번도 참조 안 된 footprint)
@@ -99,6 +102,7 @@ retrieval/recording을 모델 의존에서 빼내 **결정론적 자동화**로 
 > 구현 메모: 로깅은 best-effort(에러 swallow → read/훅을 절대 깨지 않음). `telemetry.enabled`/`store_queries`로 비활성화·카운트전용 가능. 로그는 로컬+gitignore, 외부 전송 없음. 신규 테스트 8개(search 5 / cli 3).
 
 **M3: 품질 (P2) + 운영 (P3)** ✅ 대부분 구현 (시맨틱 검색은 보류)
+
 - [ ] 하이브리드(시맨틱) 검색 옵션 — **보류(별도 PR)**. 임베딩 provider 선택이 의존성·비용·네트워크를 좌우하는 결정이라, fake 시맨틱이나 미검증 네트워크 코드를 섞기보다 별도로 진행. (현 BM25 검색은 그대로 유지)
 - [x] decay/supersede 정리 — related_to_file에 이웃(같은 디렉터리) 파일 확장(`includeNeighbors`, 기본 on); `context`/MCP/훅은 이미 `excludeSuperseded` 기본 on + 랭킹의 recency decay로 stale 억제; `gc`로 중복/구식 정리 + `gc --auto-supersede`
 - [x] `doctor` 건강성 경고 확장 — 훅 미설치 / 최근 14일 footprint 0건 / read:write 비율(0:1·임계 미달) 경고 (M2 텔레메트리 기반, 수동 분석 자동화)
@@ -131,6 +135,7 @@ M1 배포 후 같은 transcript 분석을 재실행해 다음을 확인:
 
 기존 명령: `add, context, search, list, show, supersede, memory, index, init, mcp, hook, doctor, upgrade`
 M1~M3로 추가된 표면:
+
 - 명령: `hook claude [--remove]`, `hook session-start|prompt-submit|session-end`(런타임), `stats [--days|--top|--json]`, `gc [--auto-supersede|--stale-days|--json]`
 - `init` 플래그: `--claude-hooks` / `--no-claude-hooks`
 - 설정(`.substrata/config.yml`): `telemetry.{enabled, store_queries}`, `hooks.{enabled, inject_context, max_context_tokens, min_score, remind_on_stop, non_trivial_threshold}`

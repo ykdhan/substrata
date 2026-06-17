@@ -47,7 +47,7 @@ describe('installClaudeHooks', () => {
     expect(json.hooks.SessionStart.length).toBe(1);
   });
 
-  it('preserves a user\'s existing hooks and settings', () => {
+  it("preserves a user's existing hooks and settings", () => {
     mkdirSync(path.join(cwd, '.claude'), { recursive: true });
     writeFileSync(
       settingsPath(cwd),
@@ -63,7 +63,9 @@ describe('installClaudeHooks', () => {
     const json = JSON.parse(readFileSync(settingsPath(cwd), 'utf8'));
     expect(json.model).toBe('opus');
     // The user's own SessionStart hook survives alongside ours.
-    const cmds = json.hooks.SessionStart.map((g: { hooks: { command: string }[] }) => g.hooks[0].command);
+    const cmds = json.hooks.SessionStart.map(
+      (g: { hooks: { command: string }[] }) => g.hooks[0]!.command,
+    );
     expect(cmds).toContain('echo hi');
     expect(cmds.some((c: string) => c.includes('hook session-start'))).toBe(true);
   });
@@ -81,7 +83,9 @@ describe('installClaudeHooks', () => {
     const removed = installClaudeHooks(cwd, false, { remove: true });
     expect(removed.action).toBe('update');
     const json = JSON.parse(readFileSync(settingsPath(cwd), 'utf8'));
-    const cmds = json.hooks.SessionStart.map((g: { hooks: { command: string }[] }) => g.hooks[0].command);
+    const cmds = json.hooks.SessionStart.map(
+      (g: { hooks: { command: string }[] }) => g.hooks[0]!.command,
+    );
     expect(cmds).toEqual(['echo hi']);
     // Events we introduced and that the user never had are gone entirely.
     expect(json.hooks.UserPromptSubmit).toBeUndefined();

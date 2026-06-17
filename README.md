@@ -97,12 +97,12 @@ hooks you already have are preserved. Tune behavior under the `hooks:` block in
 
 ```yaml
 hooks:
-  enabled: true              # master switch
-  inject_context: true       # SessionStart / UserPromptSubmit injection
+  enabled: true # master switch
+  inject_context: true # SessionStart / UserPromptSubmit injection
   # max_context_tokens: 1600 # defaults to search.max_context_tokens
-  min_score: 0               # raise to suppress low-relevance injections
-  remind_on_stop: true       # footprint reminder on Stop
-  non_trivial_threshold: 2   # changed-file count that counts as non-trivial
+  min_score: 0 # raise to suppress low-relevance injections
+  remind_on_stop: true # footprint reminder on Stop
+  non_trivial_threshold: 2 # changed-file count that counts as non-trivial
 ```
 
 Hooks fail open: if anything goes wrong (no config, parse error, slow disk) the
@@ -136,8 +136,8 @@ transmitted, and can be turned off or made count-only:
 
 ```yaml
 telemetry:
-  enabled: true        # set false to disable logging entirely
-  store_queries: true  # set false to keep counts but not the query/prompt text
+  enabled: true # set false to disable logging entirely
+  store_queries: true # set false to keep counts but not the query/prompt text
 ```
 
 `substrata doctor` also surfaces these as health warnings (hooks not installed,
@@ -193,7 +193,7 @@ If installation fails during `npm install` or `pnpm install`:
 | `show <id>`          | Display one footprint in full                                                                          |
 | `index`              | Build or rebuild the local search index                                                                |
 | `doctor`             | Verify repository setup                                                                                |
-| `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log      |
+| `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log       |
 | `gc`                 | Report duplicate/stale footprints; `--auto-supersede` links older duplicates to the newest             |
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                      |

@@ -4,12 +4,7 @@ import path from 'node:path';
 import { installClaudeHooks, installSecretHook, loadConfig, scanForSecrets } from '@substrata/core';
 import type { Command } from 'commander';
 
-import {
-  emitContext,
-  emitStopDecision,
-  readHookPayload,
-  runHook,
-} from '../hooks/claude-code';
+import { emitContext, emitStopDecision, readHookPayload, runHook } from '../hooks/claude-code';
 import { buildHookContext, recentDigest } from '../hooks/context';
 import { collectGitContext, git, out, resolveCwd } from '../util';
 
@@ -93,7 +88,9 @@ export function registerHookCommand(program: Command): void {
       } else if (opts.remove) {
         out.ok('Claude Code lifecycle hooks removed.');
       } else {
-        out.ok(`Claude Code lifecycle hooks ${result.action === 'create' ? 'installed' : 'updated'}.`);
+        out.ok(
+          `Claude Code lifecycle hooks ${result.action === 'create' ? 'installed' : 'updated'}.`,
+        );
         out.plain(`  ${result.path}`);
         out.info('Substrata context is now injected on session start / each prompt automatically.');
       }

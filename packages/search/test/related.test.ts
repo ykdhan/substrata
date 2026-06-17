@@ -56,7 +56,10 @@ describe('getRelatedToFile neighbor expansion', () => {
   });
 
   it('includeNeighbors:false restores exact-only behavior', async () => {
-    const results = await getRelatedToFile('src/services/user.ts', { cwd, includeNeighbors: false });
+    const results = await getRelatedToFile('src/services/user.ts', {
+      cwd,
+      includeNeighbors: false,
+    });
     const titles = results.map((r) => r.title);
     expect(titles).toContain('Edit the user service');
     expect(titles).not.toContain('Edit the order service');

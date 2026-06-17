@@ -8,12 +8,7 @@
  * everything here is defensive and the caller wraps handlers in `runHook`.
  */
 
-export type HookEventName =
-  | 'SessionStart'
-  | 'UserPromptSubmit'
-  | 'Stop'
-  | 'SubagentStop'
-  | string;
+export type HookEventName = 'SessionStart' | 'UserPromptSubmit' | 'Stop' | 'SubagentStop' | string;
 
 export type HookPayload = {
   hook_event_name?: HookEventName;

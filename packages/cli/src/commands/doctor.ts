@@ -104,7 +104,9 @@ async function reportHealth(cwd: string): Promise<void> {
     out.ok('Claude Code hooks installed');
   } else {
     out.warn('Claude Code hooks not installed — retrieval/recording is not automatic.');
-    out.plain('    Run `substrata hook claude` to enable auto context injection + footprint reminders.');
+    out.plain(
+      '    Run `substrata hook claude` to enable auto context injection + footprint reminders.',
+    );
   }
 
   // Recent footprint activity.
@@ -120,7 +122,9 @@ async function reportHealth(cwd: string): Promise<void> {
     const cutoff = new Date(Date.now() - RECENT_ACTIVITY_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const recent = footprints.filter((fp) => (fp.frontmatter.created_at ?? '') >= cutoff).length;
     if (recent === 0) {
-      out.warn(`No footprints in the last ${RECENT_ACTIVITY_DAYS} days — memory may be going stale.`);
+      out.warn(
+        `No footprints in the last ${RECENT_ACTIVITY_DAYS} days — memory may be going stale.`,
+      );
     } else {
       out.ok(`${recent} footprint(s) in the last ${RECENT_ACTIVITY_DAYS} days`);
     }
@@ -133,9 +137,13 @@ async function reportHealth(cwd: string): Promise<void> {
     const reads = stats.totalReads;
     const ratio = reads / writes;
     if (reads === 0) {
-      out.warn('read:write ratio is 0:1 — stored memory is never read back. Are the hooks installed?');
+      out.warn(
+        'read:write ratio is 0:1 — stored memory is never read back. Are the hooks installed?',
+      );
     } else if (ratio < MIN_READ_WRITE_RATIO) {
-      out.warn(`Low read:write ratio (${ratio.toFixed(2)}:1) — memory is written more than it is read.`);
+      out.warn(
+        `Low read:write ratio (${ratio.toFixed(2)}:1) — memory is written more than it is read.`,
+      );
     } else {
       out.ok(`read:write ratio ${ratio.toFixed(2)}:1`);
     }

@@ -82,20 +82,26 @@ export function registerStatsCommand(program: Command): void {
       const period = stats.since ? `since ${stats.since.slice(0, 10)}` : 'all time';
       out.plain(`Substrata usage (${period}):`);
       out.plain('');
-      out.plain(`  reads:writes      ${ratio(stats.totalReads, writes)}  (${stats.totalReads} reads / ${writes} writes)`);
-      out.plain(`  footprints        ${footprints.length} total, ${neverReferenced.length} never referenced`);
+      out.plain(
+        `  reads:writes      ${ratio(stats.totalReads, writes)}  (${stats.totalReads} reads / ${writes} writes)`,
+      );
+      out.plain(
+        `  footprints        ${footprints.length} total, ${neverReferenced.length} never referenced`,
+      );
 
       const byOp = Object.entries(stats.byOp);
       if (byOp.length > 0) {
         out.plain('');
         out.plain('  reads by op:');
-        for (const [op, n] of byOp.sort((a, b) => b[1] - a[1])) out.plain(`    ${op.padEnd(10)} ${n}`);
+        for (const [op, n] of byOp.sort((a, b) => b[1] - a[1]))
+          out.plain(`    ${op.padEnd(10)} ${n}`);
       }
       const bySource = Object.entries(stats.bySource);
       if (bySource.length > 0) {
         out.plain('');
         out.plain('  reads by source:');
-        for (const [src, n] of bySource.sort((a, b) => b[1] - a[1])) out.plain(`    ${src.padEnd(10)} ${n}`);
+        for (const [src, n] of bySource.sort((a, b) => b[1] - a[1]))
+          out.plain(`    ${src.padEnd(10)} ${n}`);
       }
       if (mostReferenced.length > 0) {
         out.plain('');
@@ -104,7 +110,9 @@ export function registerStatsCommand(program: Command): void {
       }
       if (stats.totalReads === 0) {
         out.plain('');
-        out.info('No reads logged yet. Install the Claude Code hooks (`substrata hook claude`) so retrieval happens automatically.');
+        out.info(
+          'No reads logged yet. Install the Claude Code hooks (`substrata hook claude`) so retrieval happens automatically.',
+        );
       }
     });
 }
