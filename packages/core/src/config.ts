@@ -39,6 +39,13 @@ export const defaultConfig: SubstrataConfig = {
   search: {
     default_limit: 8,
     max_context_tokens: 1600,
+    hybrid_graph: true,
+  },
+  graph: {
+    enabled: true,
+    expansion_depth: 1,
+    max_nodes: 40,
+    max_edges: 80,
   },
   security: {
     redact: true,

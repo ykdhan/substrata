@@ -8,6 +8,20 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { addInputShape, runAdd, type AddInput } from './tools/add';
 import { contextInputShape, runContext, type ContextInput } from './tools/context';
+import {
+  graphContextInputShape,
+  graphExplainInputShape,
+  graphRelatedInputShape,
+  graphStatsInputShape,
+  runGraphContext,
+  runGraphExplain,
+  runGraphRelated,
+  runGraphStats,
+  type GraphContextInput,
+  type GraphExplainInput,
+  type GraphRelatedInput,
+  type GraphStatsInput,
+} from './tools/graph';
 import { listRecentInputShape, runListRecent, type ListRecentInput } from './tools/list-recent';
 import {
   relatedToFileInputShape,
@@ -23,7 +37,8 @@ export type CreateServerOptions = {
 };
 
 /**
- * Build a fully-configured Substrata MCP server with all five tools registered.
+ * Build a fully-configured Substrata MCP server with all nine tools registered
+ * (five core tools + four Graph Memory tools).
  * The returned server is transport-agnostic; connect it to any transport.
  */
 export function createSubstrataMcpServer(options: CreateServerOptions = {}): McpServer {
@@ -95,6 +110,52 @@ export function createSubstrataMcpServer(options: CreateServerOptions = {}): Mcp
       inputSchema: listRecentInputShape,
     },
     async (input: ListRecentInput) => jsonResult(await runListRecent(input, cwd)),
+  );
+
+  // ── Graph Memory / Graph RAG tools (graph-rag-implementation.md §10) ──────
+
+  server.registerTool(
+    'substrata_graph_context',
+    {
+      title: 'Get graph-aware Substrata context for a task',
+      description:
+        'Like substrata_context but graph-aware: seeds with FTS, expands through the graph, and returns enriched sections (Relevant Memories with "why selected", Related Decisions, Rejected Alternatives, Related Files, Related Concepts).',
+      inputSchema: graphContextInputShape,
+    },
+    async (input: GraphContextInput) => jsonResult(await runGraphContext(input, cwd)),
+  );
+
+  server.registerTool(
+    'substrata_graph_related',
+    {
+      title: 'Find graph-related Substrata records',
+      description:
+        'Find footprints/memory graph-related to a footprint id or file path, with provenance (which shared files/tags/concepts/decisions or supersedes links connect them).',
+      inputSchema: graphRelatedInputShape,
+    },
+    async (input: GraphRelatedInput) => jsonResult(await runGraphRelated(input, cwd)),
+  );
+
+  server.registerTool(
+    'substrata_graph_explain',
+    {
+      title: 'Explain why Substrata records are connected',
+      description:
+        'With two ids, returns the shortest graph path between them (the "why"). With one id, returns its graph-related records.',
+      inputSchema: graphExplainInputShape,
+    },
+    async (input: GraphExplainInput) => jsonResult(await runGraphExplain(input, cwd)),
+  );
+
+  server.registerTool(
+    'substrata_graph_stats',
+    {
+      title: 'Report Substrata graph index statistics',
+      description:
+        'Node/edge counts by kind/relation and the most-connected records in the graph index.',
+      inputSchema: graphStatsInputShape,
+    },
+    async (input: GraphStatsInput) => jsonResult(await runGraphStats(input, cwd)),
   );
 
   return server;

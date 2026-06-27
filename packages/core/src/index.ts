@@ -38,6 +38,7 @@ export {
   footprintFilePath,
   footprintRelativePath,
   footprintsDir,
+  graphPath,
   indexPath,
   memoryDir,
   relativeToCwd,
@@ -91,7 +92,15 @@ export { initProject } from './init';
 
 export { GITIGNORE_LINES, ensureGitignore } from './setup/gitignore';
 export { writeShellEnv } from './setup/shellrc';
-export { AGENTS_MD_SECTION, upsertAgentsMd } from './setup/agents-md';
+export { AGENTS_MD_SECTION, SUBSTRATA_RULES_MARKDOWN, upsertAgentsMd } from './setup/agents-md';
+export { upsertMarkerSection } from './setup/markers';
+export type { UpsertMarkerOptions } from './setup/markers';
+export {
+  upsertClaudeMd,
+  upsertCursorRule,
+  upsertEditorRules,
+  upsertGeminiMd,
+} from './setup/editor-rules';
 export { installSecretHook } from './setup/hook';
 export { installClaudeHooks, claudeHooksInstalled } from './setup/claude-hooks';
 export { hasEffectiveChanges, renderPlan, summarizePlan } from './setup/plan';

@@ -69,4 +69,20 @@ describe('init --yes', () => {
     const config = readFileSync(path.join(cwd, '.substrata', 'config.yml'), 'utf8');
     expect(config).toContain('block_on_secret: false');
   });
+
+  it('generates per-editor rule files by default', async () => {
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env']);
+    expect(existsSync(path.join(cwd, 'CLAUDE.md'))).toBe(true);
+    expect(existsSync(path.join(cwd, 'GEMINI.md'))).toBe(true);
+    expect(existsSync(path.join(cwd, '.cursor', 'rules', 'substrata.mdc'))).toBe(true);
+    // The rules teach agents about the graph tools.
+    expect(readFileSync(path.join(cwd, 'CLAUDE.md'), 'utf8')).toContain('substrata_graph_context');
+  });
+
+  it('--no-editor-rules skips the per-editor rule files', async () => {
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-editor-rules']);
+    expect(existsSync(path.join(cwd, 'CLAUDE.md'))).toBe(false);
+    expect(existsSync(path.join(cwd, 'GEMINI.md'))).toBe(false);
+    expect(existsSync(path.join(cwd, '.cursor', 'rules', 'substrata.mdc'))).toBe(false);
+  });
 });

@@ -1,10 +1,19 @@
-# Substrata
+# 🪨 Substrata
 
 **Stop re-explaining your codebase to every agent.**
 
 Substrata is a shared memory layer for AI coding agents that records important engineering decisions, implementation context, rejected alternatives, and repo-specific knowledge in a Git-friendly format so other agents can retrieve and use it later.
 
-## What is Substrata?
+> ### ✨ New in 0.2.0
+>
+> - 🕸️ **Graph Memory / Graph RAG** — an auxiliary SQLite graph index that
+>   understands _relationships_ between footprints (shared files, tags, concepts,
+>   decisions, and `SUPERSEDES` chains), not just keywords. FTS is untouched.
+> - 🤖 **Editor-agnostic auto-setup** — `init` wires up Claude Code, Cursor,
+>   Gemini CLI, and Codex with MCP config **and** per-editor rule files, so any
+>   agent uses Substrata automatically.
+
+## 🤔 What is Substrata?
 
 Git records **what changed**.
 
@@ -26,7 +35,7 @@ The second agent avoids repeating context discovery and past mistakes
 
 Substrata is **not** a replacement for Git commits, PR descriptions, ADRs, or documentation. It is an **agent-native memory system** optimized for coding agents that need project context before making changes.
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Installation and Setup
 
@@ -51,14 +60,14 @@ npx substrata-cli init --yes --project my-app
 > substrata --help
 > ```
 
-### After setup, agents take over
+### 🤖 After setup, agents take over
 
-You normally don't run Substrata by hand. `init` wires up two things that make agents use it automatically:
+You normally don't run Substrata by hand. `init` wires up two things that make agents use it automatically — for **every editor it detects**:
 
-- **AGENTS.md** — rules telling agents to check context before non-trivial work and leave a footprint after.
-- **MCP registration** — agents call `substrata_context`, `substrata_search`, and `substrata_add` directly as tools.
+- **Agent rules** — `AGENTS.md` plus per-editor files (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/substrata.mdc`) telling agents to check context before non-trivial work and leave a footprint after.
+- **MCP registration** — agents call `substrata_context`, `substrata_graph_context`, `substrata_add`, etc. directly as tools. Claude Code → `.mcp.json`, Cursor → `.cursor/mcp.json`, Gemini CLI → `.gemini/settings.json`, Codex → `~/.codex/config.toml`.
 
-Open a new agent session (e.g. Claude Code) in the repository and it picks Substrata up from there. To try it manually:
+Not on a detected editor? `substrata mcp print-config --client <codex|gemini|generic>` prints a copy-pasteable config. Open a new agent session in the repository and it picks Substrata up from there. To try it manually:
 
 ```bash
 source ~/.zshrc                                                 # load attribution env vars (if wizard created them)
@@ -163,7 +172,48 @@ If installation fails during `npm install` or `pnpm install`:
 3. **Corporate proxy**: ensure `npm config` has `proxy` and `https-proxy` set correctly.
 4. **Fallback**: if native build still fails, the search index can be rebuilt or regenerated locally without downtime; users can still read and add footprints.
 
-## The Core Loop
+## 🕸️ Graph Memory (Graph RAG)
+
+Keyword search finds footprints that _mention_ your query. Graph Memory finds
+the ones that are _connected_ to them — work that touched the same files, shared
+a tag or concept, or **superseded** an earlier decision. It's an auxiliary
+SQLite index (`.substrata/index/graph.sqlite`) built alongside FTS — **FTS is
+never replaced**, and the whole layer is fail-open (a missing/corrupt graph
+degrades to plain FTS, never errors).
+
+```
+Query
+  ↓  FTS search                → top footprints (seeds)
+  ↓  graph expansion           → related files, decisions, memories
+  ↓  re-rank (shared file > decision > concept > tag; SUPERSEDES strongest)
+  ↓
+Enriched context  (Relevant Memories + Related Decisions + Rejected Alternatives
+                   + Related Files + Related Concepts + a "why selected" reason)
+```
+
+```bash
+substrata index                              # builds FTS + graph together
+substrata graph context "improve search"     # hybrid, enriched, source-linked
+substrata graph related api/learners.ts      # what else touches / relates to this?
+substrata graph explain <fromId> <toId>      # WHY are two footprints connected?
+substrata graph stats                        # node/edge counts, most-connected
+```
+
+Enable/tune it in `.substrata/config.yml` (on by default, fully backward-compatible):
+
+```yaml
+search:
+  hybrid_graph: true # graph context + hook injection expand FTS seeds via the graph
+graph:
+  enabled: true # build + use the graph index
+  expansion_depth: 1 # hops from each seed (1 = direct neighbors)
+  max_nodes: 40 # expansion bounds (keeps it cheap on dense graphs)
+  max_edges: 80
+```
+
+See **[docs/graph.md](docs/graph.md)** for the full design, node/edge model, and MCP tools.
+
+## 🔁 The Core Loop
 
 ```
 ┌─────────────────────────────────────────┐
@@ -181,28 +231,29 @@ If installation fails during `npm install` or `pnpm install`:
 └─────────────────────────────────────────┘
 ```
 
-## Command Reference
+## 📟 Command Reference
 
-| Command              | Purpose                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------ |
-| `init`               | One-command setup wizard: scaffold `.substrata/`, env vars, AGENTS.md, MCP registration, initial index |
-| `add`                | Create a new footprint (interactive or non-interactive)                                                |
-| `search <query>`     | Full-text search footprints and memory                                                                 |
-| `context <task>`     | Concise context for an agent before work (LLM-friendly, excludes superseded by default)                |
-| `list`               | List recent footprints by date, tag, or file                                                           |
-| `show <id>`          | Display one footprint in full                                                                          |
-| `index`              | Build or rebuild the local search index                                                                |
-| `doctor`             | Verify repository setup                                                                                |
-| `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log       |
-| `gc`                 | Report duplicate/stale footprints; `--auto-supersede` links older duplicates to the newest             |
-| `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                         |
-| `memory update`      | Append suggestions from recent footprints to curated memory files                                      |
-| `hook install`       | Install a pre-commit secret scan hook (optional)                                                       |
-| `hook claude`        | Install/remove the Claude Code lifecycle hooks (auto context injection + footprint reminder)           |
-| `upgrade`            | Refresh generated artifacts (AGENTS.md section, gitignore, MCP registrations) after a CLI upgrade      |
-| `mcp`                | Run the MCP server (for agent integration)                                                             |
+| Command              | Purpose                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `init`               | One-command setup wizard: scaffold `.substrata/`, env vars, agent rules, MCP registration, initial index |
+| `add`                | Create a new footprint (interactive or non-interactive)                                                  |
+| `search <query>`     | Full-text search footprints and memory                                                                   |
+| `context <task>`     | Concise context for an agent before work (LLM-friendly, excludes superseded by default)                  |
+| `graph <sub>`        | 🕸️ Graph Memory: `build`, `related <id\|file>`, `explain <from> [to]`, `stats`, `context <task>`         |
+| `list`               | List recent footprints by date, tag, or file                                                             |
+| `show <id>`          | Display one footprint in full                                                                            |
+| `index`              | Build or rebuild the local search index (FTS + graph)                                                    |
+| `doctor`             | Verify repository setup                                                                                  |
+| `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log         |
+| `gc`                 | Report duplicate/stale footprints; `--auto-supersede` links older duplicates to the newest               |
+| `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                           |
+| `memory update`      | Append suggestions from recent footprints to curated memory files                                        |
+| `hook install`       | Install a pre-commit secret scan hook (optional)                                                         |
+| `hook claude`        | Install/remove the Claude Code lifecycle hooks (auto context injection + footprint reminder)             |
+| `upgrade`            | Refresh generated artifacts (agent rules, gitignore, MCP registrations, indexes) after a CLI upgrade     |
+| `mcp`                | Run the MCP server; `mcp install [--client …]` and `mcp print-config [--client …]` to wire up editors    |
 
-## Key Options
+## ⚙️ Key Options
 
 ### `init`
 
@@ -234,59 +285,51 @@ substrata context "I need to improve search"  # LLM-friendly context
 substrata context "..." --max-tokens 800
 ```
 
-## MCP Setup
+## 🔌 MCP Setup
 
-Substrata ships with an MCP server so AI agents can call it directly. The `init` wizard auto-registers with supported editors.
+Substrata ships with an MCP server so AI agents can call it directly. `init`
+**auto-wires every editor it detects** — no manual MCP editing. Each registration
+is idempotent (re-running `init` or `upgrade` refreshes it in place):
 
-### Claude Code (via init wizard)
+| Editor         | MCP config (written by `init` / `mcp install`) | Agent-rule file               |
+| -------------- | ---------------------------------------------- | ----------------------------- |
+| 🟣 Claude Code | `.mcp.json` (project)                          | `CLAUDE.md` + `AGENTS.md`     |
+| 🔵 Cursor      | `.cursor/mcp.json` (project)                   | `.cursor/rules/substrata.mdc` |
+| ⭐ Gemini CLI  | `.gemini/settings.json` (project)              | `GEMINI.md`                   |
+| 🟢 Codex       | `~/.codex/config.toml` (global, managed block) | `AGENTS.md`                   |
+| 🌊 Windsurf    | printed snippet (global)                       | `AGENTS.md`                   |
 
-The wizard writes a project-scoped `.mcp.json` (idempotent — re-running `init` or `upgrade` refreshes the entry in place):
+Every config points at the same launcher: `npx -y substrata-cli mcp`. Retrofit an
+existing repo or wire up a client by hand with:
 
-```json
-{
-  "mcpServers": {
-    "substrata": {
-      "command": "npx",
-      "args": ["-y", "substrata-cli", "mcp"]
-    }
-  }
-}
+```bash
+substrata mcp install --client cursor          # register into a detected/named editor
+substrata mcp print-config --client codex      # print a copy-pasteable config (TOML for Codex,
+                                               # mcpServers JSON for everything else)
 ```
 
-### Cursor
+After upgrading the CLI, run `substrata upgrade` once to refresh all of the above
+(agent rules + every MCP registration) and rebuild the indexes.
 
-Add to `.cursor/mcp.json`:
+## 🧰 MCP Tools
 
-```json
-{
-  "mcpServers": {
-    "substrata": {
-      "command": "node",
-      "args": ["/absolute/path/to/node_modules/substrata-cli/dist/bin.js", "mcp"]
-    }
-  }
-}
-```
+The server exposes **nine** underscore-named tools — five core, four graph:
 
-### Windsurf
+| Tool                         | Purpose                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `substrata_search`           | Full-text search (query, limit, files, tags, excludeSuperseded)                                  |
+| `substrata_context`          | Concise context for a task (task, files, maxTokens)                                              |
+| `substrata_add`              | Create a footprint (title, purpose, actor, decisions, rejected options, etc.; secret-scan gated) |
+| `substrata_related_to_file`  | Find memory related to a file (filePath, limit)                                                  |
+| `substrata_list_recent`      | List recent footprints (limit, tags)                                                             |
+| 🕸️ `substrata_graph_context` | Graph-aware enriched context: hybrid retrieval + "why selected" (task, files, maxTokens)         |
+| 🕸️ `substrata_graph_related` | Graph-related records for an id or file, with bridge provenance (target, file, limit)            |
+| 🕸️ `substrata_graph_explain` | Shortest graph path between two records, or one record's relations (from, to)                    |
+| 🕸️ `substrata_graph_stats`   | Graph node/edge counts and most-connected records (topN)                                         |
 
-Add to `.windsurf/mcp.json` (same shape as Cursor).
+See `docs/mcp.md` for detailed tool signatures and `docs/graph.md` for the graph model.
 
-## MCP Tools
-
-The server exposes five underscore-named tools:
-
-| Tool                        | Purpose                                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| `substrata_search`          | Full-text search (query, limit, files, tags, excludeSuperseded)                                  |
-| `substrata_context`         | Concise context for a task (task, files, maxTokens)                                              |
-| `substrata_add`             | Create a footprint (title, purpose, actor, decisions, rejected options, etc.; secret-scan gated) |
-| `substrata_related_to_file` | Find memory related to a file (filePath, limit)                                                  |
-| `substrata_list_recent`     | List recent footprints (limit, tags)                                                             |
-
-See `docs/mcp.md` for detailed tool signatures.
-
-## Repository Structure
+## 📂 Repository Structure
 
 ```
 .substrata/
@@ -300,12 +343,14 @@ See `docs/mcp.md` for detailed tool signatures.
   templates/
     footprint.md            # template for interactive add
     memory.md
-  index/                     # SQLite FTS search index (gitignored, auto-generated)
-    footprint.sqlite
+  index/                     # generated, gitignored — safe to delete and rebuild
+    footprint.sqlite        # SQLite FTS search index
+    graph.sqlite            # 🕸️ SQLite graph index (auxiliary, built alongside FTS)
+    access.sqlite           # local read/write telemetry (survives index rebuilds)
   cache/                     # temporary data (gitignored)
 ```
 
-## Security Defaults
+## 🔒 Security Defaults
 
 Substrata files are committed to the repo, so security defaults are conservative:
 
@@ -318,7 +363,7 @@ The CLI secret scan is **best-effort, not a guarantee**. See `docs/security.md` 
 
 Never store secrets, credentials, API keys, tokens, or sensitive user data in Substrata files.
 
-## Monorepo Packages
+## 📦 Monorepo Packages
 
 | Package                 | Purpose                                                                       | Published                       |
 | ----------------------- | ----------------------------------------------------------------------------- | ------------------------------- |
@@ -327,7 +372,9 @@ Never store secrets, credentials, API keys, tokens, or sensitive user data in Su
 | `@substrata/search`     | SQLite FTS index, querying, ranking, freshness detection                      | no — bundled into substrata-cli |
 | `@substrata/mcp-server` | MCP server and tool implementations                                           | no — bundled into substrata-cli |
 
-## Contributing
+## 🤝 Contributing
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide. Quick version:
 
 ### Development Setup
 
@@ -359,15 +406,16 @@ pnpm changeset
 
 before pushing your PR.
 
-## Documentation
+## 📚 Documentation
 
 - **[Architecture](docs/architecture.md)** — two-layer model, file-as-source-of-truth strategy, package responsibilities, index freshness
+- **[Graph Memory / Graph RAG](docs/graph.md)** 🕸️ — graph index, node/edge model, hybrid retrieval, CLI + MCP usage
 - **[Footprint Format](docs/footprint-format.md)** — full schema reference with examples
 - **[Memory Format](docs/memory-format.md)** — curated memory with marker-delimited entries
 - **[MCP](docs/mcp.md)** — tool signatures and integration guide
 - **[Security](docs/security.md)** — redaction, secret patterns, pre-commit hook
 - **[Roadmap](docs/roadmap.md)** — v0.1 through v1.0 plans
 
-## License
+## 📄 License
 
 MIT. See [LICENSE](LICENSE).

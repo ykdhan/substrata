@@ -5,7 +5,7 @@ import { loadConfig } from '@substrata/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { emitContext, emitStopDecision } from '../src/hooks/claude-code';
-import { buildHookContext, recentDigest } from '../src/hooks/context';
+import { buildGraphHookContext, buildHookContext, recentDigest } from '../src/hooks/context';
 import { makeTempRepo, removeDir, runCommand } from './helpers';
 
 let cwd: string;
@@ -96,6 +96,72 @@ describe('buildHookContext', () => {
     const config = await loadConfig(cwd);
     const strict = { ...config, hooks: { ...config.hooks, min_score: 1e9 } };
     expect(await buildHookContext(cwd, strict, { query: 'some note' })).toBeNull();
+  });
+});
+
+describe('buildGraphHookContext', () => {
+  it('returns graph-aware enriched context for a relevant prompt', async () => {
+    await runCommand(cwd, [
+      'add',
+      '--title',
+      'Stripe webhook retry handling',
+      '--actor',
+      'claude-code',
+      '--decision',
+      'Use idempotency keys for webhook replays',
+      '--files',
+      'payments/webhooks.ts',
+    ]);
+    const config = await loadConfig(cwd);
+
+    expect(await buildGraphHookContext(cwd, config, { query: '   ' })).toBeNull();
+
+    const hit = await buildGraphHookContext(cwd, config, {
+      query: 'how do we handle stripe webhooks',
+    });
+    expect(hit).toContain('graph-aware');
+    expect(hit).toContain('Why selected');
+    expect(hit).toContain('idempotency keys');
+  });
+
+  it('surfaces a graph-related footprint the FTS query alone would miss', async () => {
+    // A matches the prompt; B shares A's file but has no query terms.
+    await runCommand(cwd, [
+      'add',
+      '--title',
+      'Zephyr renderer',
+      '--actor',
+      'a',
+      '--decision',
+      'Render zephyr widgets lazily',
+      '--files',
+      'ui/panel.ts',
+    ]);
+    await runCommand(cwd, [
+      'add',
+      '--title',
+      'Grid layout pass',
+      '--actor',
+      'a',
+      '--decision',
+      'Lay panes out in a grid',
+      '--files',
+      'ui/panel.ts',
+    ]);
+    const config = await loadConfig(cwd);
+
+    const text = await buildGraphHookContext(cwd, config, { query: 'zephyr' });
+    expect(text).not.toBeNull();
+    // The grid-layout footprint rides in via the shared ui/panel.ts file.
+    expect(text).toContain('Related Files');
+    expect(text).toContain('ui/panel.ts');
+  });
+
+  it('respects a high min_score by injecting nothing (same noise gate as FTS)', async () => {
+    await runCommand(cwd, ['add', '--title', 'Some note', '--actor', 'a']);
+    const config = await loadConfig(cwd);
+    const strict = { ...config, hooks: { ...config.hooks, min_score: 1e9 } };
+    expect(await buildGraphHookContext(cwd, strict, { query: 'some note' })).toBeNull();
   });
 });
 

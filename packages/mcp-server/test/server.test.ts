@@ -62,7 +62,7 @@ afterEach(async () => {
 });
 
 describe('createSubstrataMcpServer', () => {
-  it('lists the five underscore-named tools', async () => {
+  it('lists the five core tools plus the four graph tools', async () => {
     const client = await connectClient(tmpRepo);
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
@@ -70,6 +70,10 @@ describe('createSubstrataMcpServer', () => {
       [
         'substrata_add',
         'substrata_context',
+        'substrata_graph_context',
+        'substrata_graph_explain',
+        'substrata_graph_related',
+        'substrata_graph_stats',
         'substrata_list_recent',
         'substrata_related_to_file',
         'substrata_search',
@@ -200,6 +204,76 @@ describe('createSubstrataMcpServer', () => {
     const results = payload.results as Array<{ title: string }>;
     expect(results.length).toBe(1);
     expect(results[0]?.title).toBe('Add payment retry logic');
+    await client.close();
+  });
+
+  it('substrata_graph_context returns enriched, graph-aware context', async () => {
+    const client = await connectClient(tmpRepo);
+    const result = await client.callTool({
+      name: 'substrata_graph_context',
+      arguments: { task: 'improve learner search performance' },
+    });
+    const payload = parsePayload(result);
+    expect(typeof payload.context).toBe('string');
+    expect(payload.context as string).toContain('Relevant Substrata context (graph-aware):');
+    expect(payload.context as string).toContain('Why selected:');
+    expect(Array.isArray(payload.sources)).toBe(true);
+    await client.close();
+  });
+
+  it('substrata_graph_related relates docs touching a file', async () => {
+    const client = await connectClient(tmpRepo);
+    const result = await client.callTool({
+      name: 'substrata_graph_related',
+      arguments: { target: 'api/learners.ts' },
+    });
+    const payload = parsePayload(result);
+    const results = payload.results as Array<{ ref: string; bridges: unknown[] }>;
+    expect(results.length).toBeGreaterThan(0);
+    expect(Array.isArray(results[0]?.bridges)).toBe(true);
+    await client.close();
+  });
+
+  it('substrata_graph_stats returns node/edge counts', async () => {
+    const client = await connectClient(tmpRepo);
+    const result = await client.callTool({ name: 'substrata_graph_stats', arguments: {} });
+    const payload = parsePayload(result);
+    expect((payload.totalNodes as number) > 0).toBe(true);
+    const nodesByKind = payload.nodesByKind as Record<string, number>;
+    expect(nodesByKind.footprint).toBeGreaterThanOrEqual(2);
+    await client.close();
+  });
+
+  it('substrata_graph_explain returns a path between two footprints', async () => {
+    // Both seeded footprints differ; add two that share a file for a clean path.
+    await writeFootprint({
+      cwd: tmpRepo,
+      title: 'Cache layer A',
+      actor: 'bot-a',
+      decisions: ['Use an in-memory LRU.'],
+      filesTouched: ['cache/shared.ts'],
+    });
+    await writeFootprint({
+      cwd: tmpRepo,
+      title: 'Cache layer B',
+      actor: 'bot-b',
+      decisions: ['Add TTL eviction.'],
+      filesTouched: ['cache/shared.ts'],
+    });
+    const { listFootprints } = await import('@substrata/core');
+    const fps = await listFootprints(tmpRepo);
+    const a = fps.find((f) => f.title === 'Cache layer A')!;
+    const b = fps.find((f) => f.title === 'Cache layer B')!;
+
+    const client = await connectClient(tmpRepo);
+    const result = await client.callTool({
+      name: 'substrata_graph_explain',
+      arguments: { from: a.frontmatter.id, to: b.frontmatter.id },
+    });
+    const payload = parsePayload(result);
+    const pathResult = payload.path as { found: boolean; path: Array<{ node: { kind: string } }> };
+    expect(pathResult.found).toBe(true);
+    expect(pathResult.path.some((hop) => hop.node.kind === 'file')).toBe(true);
     await client.close();
   });
 });

@@ -54,6 +54,41 @@ function readMeta(cwd: string): Map<string, string> {
   }
 }
 
+/** Combined stat walk of the footprint + memory dirs (count + max mtime ms). */
+export async function sourceStats(cwd: string): Promise<{ count: number; maxMtime: number }> {
+  const [fp, mem] = await Promise.all([walkStats(footprintsDir(cwd)), walkStats(memoryDir(cwd))]);
+  return { count: fp.count + mem.count, maxMtime: Math.max(fp.maxMtime, mem.maxMtime) };
+}
+
+/**
+ * Pure freshness comparison shared by the FTS and graph indexes: given the
+ * recorded `meta` map, the current schema version, and a fresh source stat
+ * walk, decide whether the index is stale (schema/count/mtime) or fresh.
+ */
+export function evaluateMetaFreshness(
+  meta: Map<string, string>,
+  schemaVersion: number,
+  source: { count: number; maxMtime: number },
+): IndexStatus {
+  const recordedSchema = Number(meta.get('schema_version'));
+  if (!Number.isFinite(recordedSchema) || recordedSchema !== schemaVersion) {
+    return { state: 'stale', reason: 'schema' };
+  }
+
+  const recordedCount = Number(meta.get('source_file_count'));
+  if (!Number.isFinite(recordedCount) || recordedCount !== source.count) {
+    return { state: 'stale', reason: 'count' };
+  }
+
+  const recordedMtime = Number(meta.get('source_max_mtime'));
+  // Allow a 1ms tolerance for filesystem mtime granularity differences.
+  if (!Number.isFinite(recordedMtime) || source.maxMtime > recordedMtime + 1) {
+    return { state: 'stale', reason: 'mtime' };
+  }
+
+  return { state: 'fresh' };
+}
+
 /**
  * Report whether the on-disk index is missing, stale, or fresh for `cwd`.
  *
@@ -78,25 +113,5 @@ export async function getIndexStatus(cwd: string): Promise<IndexStatus> {
     return { state: 'missing' };
   }
 
-  const recordedSchema = Number(meta.get('schema_version'));
-  if (!Number.isFinite(recordedSchema) || recordedSchema !== SCHEMA_VERSION) {
-    return { state: 'stale', reason: 'schema' };
-  }
-
-  const [fp, mem] = await Promise.all([walkStats(footprintsDir(cwd)), walkStats(memoryDir(cwd))]);
-  const sourceCount = fp.count + mem.count;
-  const sourceMaxMtime = Math.max(fp.maxMtime, mem.maxMtime);
-
-  const recordedCount = Number(meta.get('source_file_count'));
-  if (!Number.isFinite(recordedCount) || recordedCount !== sourceCount) {
-    return { state: 'stale', reason: 'count' };
-  }
-
-  const recordedMtime = Number(meta.get('source_max_mtime'));
-  // Allow a 1ms tolerance for filesystem mtime granularity differences.
-  if (!Number.isFinite(recordedMtime) || sourceMaxMtime > recordedMtime + 1) {
-    return { state: 'stale', reason: 'mtime' };
-  }
-
-  return { state: 'fresh' };
+  return evaluateMetaFreshness(meta, SCHEMA_VERSION, await sourceStats(cwd));
 }

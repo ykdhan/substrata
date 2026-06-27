@@ -1,19 +1,22 @@
-import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { ChangeResult } from '../types';
-import { isSymlink } from './symlink';
+
+import { upsertMarkerSection } from './markers';
 
 /**
  * Insert/replace the Substrata section in AGENTS.md between begin/end markers.
  * Replace-in-place on rerun; never duplicates. Pure + dry-runnable. See plan §10.
+ *
+ * `SUBSTRATA_RULES_MARKDOWN` (the marker-free body) is the single source of truth
+ * for the agent rules — `editor-rules.ts` reuses it for CLAUDE.md / GEMINI.md /
+ * the Cursor rule so every editor gets identical guidance.
  */
 
 const BEGIN = '<!-- substrata:start -->';
 const END = '<!-- substrata:end -->';
 
-export const AGENTS_MD_SECTION = `${BEGIN}
-## Substrata Rules
+export const SUBSTRATA_RULES_MARKDOWN = `## Substrata Rules
 
 This repository uses Substrata for shared agent memory.
 
@@ -26,6 +29,12 @@ Prefer the MCP tools (\`substrata_context\`, \`substrata_search\`, \`substrata_a
 \`substrata_related_to_file\`, \`substrata_list_recent\`) when they are available.
 For shell usage, run the CLI as \`npx -y substrata-cli <command>\` — the bare
 \`substrata\` binary only exists if the package was installed globally.
+
+For relationship-aware memory, prefer the graph tools (\`substrata_graph_context\`,
+\`substrata_graph_related\`, \`substrata_graph_explain\`, \`substrata_graph_stats\`, or
+\`npx -y substrata-cli graph context|related|explain|stats\`). \`graph_context\`
+returns the same memory as \`substrata_context\` plus related decisions, rejected
+alternatives, related files/concepts, and a "why selected" reason for each item.
 
 Set these once per agent session so footprints are attributed correctly:
 - \`SUBSTRATA_ACTOR\`     (e.g. "claude-code")
@@ -47,55 +56,20 @@ After making non-trivial changes:
 3. If the work changes durable repo conventions, update \`.substrata/memory/\`.
 4. If the work reverses a prior decision, use \`npx -y substrata-cli supersede\`.
 
-Do not store secrets, credentials, private keys, tokens, or sensitive user data in Substrata files.
-${END}`;
+Do not store secrets, credentials, private keys, tokens, or sensitive user data in Substrata files.`;
 
-function readIfExists(filePath: string): string | null {
-  try {
-    return readFileSync(filePath, 'utf8');
-  } catch {
-    return null;
-  }
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+/** The full AGENTS.md section, including the begin/end markers. */
+export const AGENTS_MD_SECTION = `${BEGIN}\n${SUBSTRATA_RULES_MARKDOWN}\n${END}`;
 
 /** Upsert the Substrata section into `<cwd>/AGENTS.md`. */
 export function upsertAgentsMd(cwd: string, dry: boolean = false): ChangeResult {
-  const filePath = path.join(cwd, 'AGENTS.md');
-  if (isSymlink(filePath)) {
-    return { path: filePath, action: 'skip', description: 'refused: AGENTS.md is a symlink' };
-  }
-  const existing = readIfExists(filePath);
-  const markerRe = new RegExp(`${escapeRegExp(BEGIN)}[\\s\\S]*?${escapeRegExp(END)}`, 'm');
-
-  let next: string;
-  let action: ChangeResult['action'];
-
-  if (existing === null) {
-    next = `${AGENTS_MD_SECTION}\n`;
-    action = 'create';
-  } else if (markerRe.test(existing)) {
-    const replaced = existing.replace(markerRe, AGENTS_MD_SECTION);
-    if (replaced === existing) {
-      return { path: filePath, action: 'skip', description: 'AGENTS.md section already current' };
-    }
-    next = replaced;
-    action = 'update';
-  } else {
-    const sep = existing.endsWith('\n') ? '' : '\n';
-    next = `${existing}${sep}\n${AGENTS_MD_SECTION}\n`;
-    action = 'update';
-  }
-
-  if (!dry) writeFileSync(filePath, next, 'utf8');
-
-  return {
-    path: filePath,
-    action,
-    description: 'write Substrata AGENTS.md section',
-    contents: next,
-  };
+  return upsertMarkerSection(path.join(cwd, 'AGENTS.md'), {
+    begin: BEGIN,
+    end: END,
+    section: AGENTS_MD_SECTION,
+    dry,
+    symlinkLabel: 'AGENTS.md',
+    skipDescription: 'AGENTS.md section already current',
+    writeDescription: 'write Substrata AGENTS.md section',
+  });
 }

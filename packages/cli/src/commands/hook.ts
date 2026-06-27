@@ -5,7 +5,7 @@ import { installClaudeHooks, installSecretHook, loadConfig, scanForSecrets } fro
 import type { Command } from 'commander';
 
 import { emitContext, emitStopDecision, readHookPayload, runHook } from '../hooks/claude-code';
-import { buildHookContext, recentDigest } from '../hooks/context';
+import { buildGraphHookContext, buildHookContext, recentDigest } from '../hooks/context';
 import { collectGitContext, git, out, resolveCwd } from '../util';
 
 /**
@@ -134,7 +134,20 @@ function registerLifecycleHandlers(hook: Command): void {
         const config = await loadConfig(cwd);
         if (!config.hooks.enabled || !config.hooks.inject_context) return;
         const query = typeof payload.prompt === 'string' ? payload.prompt : '';
-        const context = await buildHookContext(cwd, config, { query });
+
+        // Prefer graph-aware context; degrade to FTS, then to no injection
+        // (graph-rag-implementation.md "Hook 개선": Graph → FTS → skip).
+        let context: string | null = null;
+        if (config.graph.enabled && config.search.hybrid_graph) {
+          try {
+            context = await buildGraphHookContext(cwd, config, { query });
+          } catch {
+            context = null;
+          }
+        }
+        if (context === null) {
+          context = await buildHookContext(cwd, config, { query });
+        }
         emitContext('UserPromptSubmit', context ?? undefined);
       });
     });

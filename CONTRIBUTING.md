@@ -1,6 +1,8 @@
-# Contributing to Substrata
+# 🤝 Contributing to Substrata
 
-## Development Setup
+Thanks for helping make agent memory better! 🙌
+
+## 🛠️ Development Setup
 
 ### Prerequisites
 
@@ -37,14 +39,14 @@ pnpm format
 
 All checks must pass before pushing.
 
-## Project Structure
+## 🗂️ Project Structure
 
 ```
 packages/
-  core/           # File model, parsing, setup writers
-  search/         # SQLite FTS index, ranking, freshness
-  cli/            # Commands, wizard, MCP client registry
-  mcp-server/     # MCP server and tools
+  core/           # File model, parsing, redaction, setup writers (AGENTS.md, editor rules)
+  search/         # SQLite FTS + 🕸️ graph index (src/graph/*): extraction, hybrid retrieval, ranking
+  cli/            # Commands, wizard, MCP client registry (claude/cursor/windsurf/codex/gemini)
+  mcp-server/     # MCP server and tools (5 core + 4 graph)
 ```
 
 Each package has:
@@ -53,7 +55,11 @@ Each package has:
 - `test/` — vitest tests
 - `dist/` — built output (generated)
 
-## Making Changes
+The graph layer lives in `packages/search/src/graph/` (schema, extraction,
+indexer, query, hybrid retrieval, renderer) and is **strictly additive + fail-open**
+on top of FTS — see [docs/graph.md](docs/graph.md).
+
+## ✍️ Making Changes
 
 ### Before Implementing
 
@@ -95,7 +101,7 @@ pnpm test -- -u
 - Include code examples that are tested and verified
 - Keep documentation concise and scannable (headers, bullets, tables)
 
-## Versioning
+## 🔖 Versioning
 
 Substrata uses Changesets for semantic versioning.
 
@@ -121,44 +127,57 @@ Commit the generated `.changeset/*.md` file with your PR.
 
 On release, changesets are combined, versions are bumped, and CHANGELOG is updated automatically.
 
-## Submitting a PR
+## 🚀 Submitting a PR
 
 1. Create a feature branch: `git checkout -b feature/my-feature`
 2. Make changes, write tests, update docs
-3. Ensure all checks pass: `pnpm build && pnpm test && pnpm lint && pnpm typecheck`
+3. Ensure all checks pass: `pnpm build && pnpm test && pnpm lint && pnpm typecheck && pnpm format:check`
 4. Create a changeset: `pnpm changeset`
 5. Push and open a PR
 6. Address review feedback
 
-## Common Tasks
+## 🧩 Common Tasks
 
 ### Adding a New CLI Command
 
 1. Create `packages/cli/src/commands/my-command.ts`
 2. Register in `packages/cli/src/index.ts` via `registerMyCommandCommand(program)`
-3. Add tests in `packages/cli/test/commands.test.ts`
+3. Add tests in `packages/cli/test/` (e.g. `commands.test.ts`)
 4. Update `docs/` and README if user-visible
+
+> For a command **group** with subcommands (parent + `build`/`stats`/…), see
+> `packages/cli/src/commands/graph.ts` as a worked example.
 
 ### Adding a New MCP Tool
 
-1. Create `packages/mcp-server/src/tools/my-tool.ts` with input shape and handler
+1. Create `packages/mcp-server/src/tools/my-tool.ts` with a Zod input shape and handler
 2. Register in `packages/mcp-server/src/server.ts`
-3. Export types and test the handler
+3. Export types and test the handler in `packages/mcp-server/test/server.test.ts`
 4. Update `docs/mcp.md`
 
-### Adding Search Ranking Logic
+### Adding an MCP Client (editor integration)
 
-1. Modify `packages/search/src/ranking.ts`
-2. Write tests in `packages/search/test/ranking.test.ts`
-3. Update `docs/architecture.md` if user-visible
+1. Create `packages/cli/src/mcp-clients/my-editor.ts` implementing `McpClient`
+   (`detect` / `register` / `unregister`) — reuse `mergeMcpJson` for JSON configs
+2. Add it to `MCP_CLIENTS` in `packages/cli/src/mcp-clients/registry.ts` (this
+   auto-wires it into `init` detection and `substrata mcp install`)
+3. If the editor has a native rules file, add a writer in
+   `packages/core/src/setup/editor-rules.ts` (reuse `SUBSTRATA_RULES_MARKDOWN`)
+4. Add tests in `packages/cli/test/mcp-clients.test.ts`
 
-## Questions?
+### Working on Search / Graph
+
+1. FTS ranking: `packages/search/src/ranking.ts` (+ `test/ranking.test.ts`)
+2. Graph extraction/expansion: `packages/search/src/graph/*` (+ `test/graph.test.ts`)
+3. Keep the graph layer additive + fail-open; update `docs/graph.md` if user-visible
+
+## ❓ Questions?
 
 - Check `substrata-plan.md` for design decisions
 - Review `docs/` for architecture details
 - Look at existing code for patterns and conventions
 - Open an issue for questions or discussion
 
-## Code of Conduct
+## 🌟 Code of Conduct
 
 Be respectful, inclusive, and constructive. We welcome all contributions.
