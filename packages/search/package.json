@@ -1,6 +1,6 @@
 {
   "name": "@substrata/search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "SQLite FTS5 search index for Substrata footprints and memory",
   "license": "MIT",

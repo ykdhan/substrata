@@ -1,6 +1,6 @@
 {
   "name": "@substrata/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Core file model for Substrata: footprints, curated memory, config, redaction, and setup writers",
   "license": "MIT",

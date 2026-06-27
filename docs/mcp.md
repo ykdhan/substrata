@@ -196,7 +196,59 @@ List recent footprints.
 
 Footprints are sorted by `updated_at` (or `created_at` if not updated), newest first.
 
+### Graph tools
+
+Four additional tools expose the Graph Memory / Graph RAG layer. They mirror the
+`substrata graph …` CLI subcommands, auto-(re)build the graph on first use, and
+fail open (returning empty results rather than erroring on an absent graph):
+
+- **`substrata_graph_context`** — `{ task, files?, maxTokens? }` → `{ context, sources }`.
+  Like `substrata_context`, but seeds with FTS and expands through the graph,
+  returning enriched sections (Relevant Memories with a "why selected" line,
+  Related Decisions, Rejected Alternatives, Related Files, Related Concepts).
+- **`substrata_graph_related`** — `{ target, file?, limit?, excludeSuperseded? }` →
+  `{ results }`. Records graph-related to a footprint id or file path, each with
+  `bridges` provenance (which shared files/tags/concepts/decisions or supersedes
+  link connects them).
+- **`substrata_graph_explain`** — `{ from, to? }`. With two ids, returns the shortest
+  graph `path` between them; with one id, returns its graph-`related` records.
+- **`substrata_graph_stats`** — `{ topN? }` → node/edge counts by kind/relation and
+  the most-connected records.
+
+See [graph.md](./graph.md) for the full design and CLI equivalents.
+
 ## Client Registration
+
+`substrata init` auto-wires every editor it detects — no manual MCP editing:
+
+| Editor      | MCP config written by `init` / `mcp install`   | Agent-rule file written by `init` |
+| ----------- | ---------------------------------------------- | --------------------------------- |
+| Claude Code | `.mcp.json` (project)                          | `CLAUDE.md` + `AGENTS.md`         |
+| Cursor      | `.cursor/mcp.json` (project)                   | `.cursor/rules/substrata.mdc`     |
+| Gemini CLI  | `.gemini/settings.json` (project)              | `GEMINI.md`                       |
+| Codex       | `~/.codex/config.toml` (global, managed block) | `AGENTS.md`                       |
+| Windsurf    | printed snippet (global config)                | `AGENTS.md`                       |
+
+The agent-rule files (generated unless `--no-editor-rules`) teach each editor's
+agent to call `substrata_context` / `substrata_graph_context` before work and
+`substrata_add` after — so the tools are not just available, they get used.
+
+Standalone commands:
+
+- `substrata mcp install [--client claude|cursor|windsurf|codex|gemini] [--dry]` —
+  register the server into a detected or named editor (retrofit an existing repo).
+- `substrata mcp print-config [--client claude|cursor|codex|gemini|generic]` —
+  print a copy-pasteable config (Codex uses TOML; the rest use `mcpServers` JSON)
+  for any client you'd rather configure by hand.
+
+### After upgrading the CLI
+
+A new `substrata-cli` version does **not** retroactively rewrite on-disk config.
+After bumping the version, run `substrata upgrade` once: it idempotently refreshes
+the AGENTS.md/CLAUDE.md/GEMINI.md sections, the Cursor rule, the `.gitignore` lines,
+and every existing MCP registration (Claude/Cursor/Gemini/Codex), then rebuilds the
+search + graph index. It never adds integrations you opted out of — re-run `init`
+for that.
 
 ### Claude Code
 

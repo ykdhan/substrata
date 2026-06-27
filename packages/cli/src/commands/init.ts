@@ -43,6 +43,7 @@ export function registerInitCommand(program: Command): void {
     .option('--requester <id>', 'Default requester')
     .option('--no-env', "Don't touch shell rc; print snippet instead")
     .option('--no-agents-md', 'Skip AGENTS.md')
+    .option('--no-editor-rules', 'Skip per-editor rules (CLAUDE.md, GEMINI.md, .cursor/rules)')
     .option('--no-mcp', 'Skip MCP registration')
     .option('--mcp-client <name>', 'Register only this client (repeatable)', collect, [])
     .option('--no-gitignore', "Don't edit .gitignore")
@@ -63,6 +64,7 @@ export function registerInitCommand(program: Command): void {
         requester: opts.requester,
         env: opts.env,
         agentsMd: opts.agentsMd,
+        editorRules: opts.editorRules,
         mcp: opts.mcp,
         mcpClient: opts.mcpClient,
         gitignore: opts.gitignore,
@@ -102,8 +104,10 @@ export function registerInitCommand(program: Command): void {
 
       out.plain('');
       out.plain('You are set. Agents pick up Substrata automatically from here:');
-      out.plain('  - AGENTS.md tells them to check context before work and leave footprints after');
-      out.plain('  - registered MCP clients expose substrata_context / substrata_add as tools');
+      out.plain('  - AGENTS.md + per-editor rules (CLAUDE.md, GEMINI.md, .cursor/rules) tell');
+      out.plain('    agents to check context before work and leave footprints after');
+      out.plain('  - registered MCP clients expose substrata_context / substrata_graph_* as tools');
+      out.plain('  - other editors: `substrata mcp print-config --client <codex|gemini|generic>`');
       out.plain('');
       out.plain('To try it yourself:');
       out.plain('  npx substrata-cli context "<what you are about to work on>"');
@@ -121,6 +125,7 @@ type InitCommandOptions = {
   requester?: string;
   env?: boolean;
   agentsMd?: boolean;
+  editorRules?: boolean;
   mcp?: boolean;
   mcpClient?: string[];
   gitignore?: boolean;

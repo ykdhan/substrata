@@ -1,7 +1,9 @@
 import type { ChangeResult } from '@substrata/core';
 
 import { claudeCodeClient } from './claude-code';
+import { codexClient } from './codex';
 import { cursorClient } from './cursor';
+import { geminiClient } from './gemini';
 import { windsurfClient } from './windsurf';
 
 /**
@@ -35,7 +37,13 @@ export const SUBSTRATA_MCP_SPEC: McpServerSpec = {
   args: ['-y', 'substrata-cli', 'mcp'],
 };
 
-export const MCP_CLIENTS: McpClient[] = [claudeCodeClient, cursorClient, windsurfClient];
+export const MCP_CLIENTS: McpClient[] = [
+  claudeCodeClient,
+  cursorClient,
+  windsurfClient,
+  codexClient,
+  geminiClient,
+];
 
 /** Look up a client by its stable id. */
 export function getMcpClient(name: string): McpClient | undefined {

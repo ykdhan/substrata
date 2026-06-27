@@ -5,6 +5,7 @@ import { registerAddCommand } from './commands/add';
 import { registerContextCommand } from './commands/context';
 import { registerDoctorCommand } from './commands/doctor';
 import { registerGcCommand } from './commands/gc';
+import { registerGraphCommand } from './commands/graph';
 import { registerHookCommand } from './commands/hook';
 import { registerIndexCommand } from './commands/index';
 import { registerInitCommand } from './commands/init';
@@ -52,6 +53,7 @@ export function buildProgram(): Command {
   registerSupersedeCommand(program);
   registerStatsCommand(program);
   registerGcCommand(program);
+  registerGraphCommand(program);
   registerMemoryUpdateCommand(program);
   registerHookCommand(program);
   registerUpgradeCommand(program);

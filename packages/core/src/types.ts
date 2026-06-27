@@ -145,6 +145,27 @@ export type SubstrataConfig = {
   search: {
     default_limit: number;
     max_context_tokens: number;
+    /**
+     * When true, graph-aware retrieval paths (graph context, hook injection)
+     * may expand FTS seeds through the graph index. Purely additive and
+     * fail-open: with no/empty graph the result is identical to pure FTS.
+     */
+    hybrid_graph: boolean;
+  };
+  /**
+   * Graph Memory / Graph RAG settings. The graph is an auxiliary SQLite index
+   * (`.substrata/index/graph.sqlite`) built alongside the FTS index; it never
+   * replaces FTS and can be left disabled with zero effect on existing flows.
+   */
+  graph: {
+    /** Master switch for building/using the graph index. */
+    enabled: boolean;
+    /** Hops to expand from each FTS seed footprint (1 = direct neighbors). */
+    expansion_depth: number;
+    /** Upper bound on nodes visited during a single expansion. */
+    max_nodes: number;
+    /** Upper bound on edges traversed during a single expansion. */
+    max_edges: number;
   };
   security: {
     redact: boolean;

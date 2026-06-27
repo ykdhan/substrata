@@ -55,6 +55,16 @@ export function accessLogPath(cwd: string): string {
 }
 
 /**
+ * Absolute path to the generated SQLite graph index. Like `accessLogPath`, it
+ * lives under the gitignored `index/` dir but is a SEPARATE file from the FTS
+ * index so a `substrata index` FTS rebuild (which drops & recreates every FTS
+ * table) never wipes the graph, and vice-versa.
+ */
+export function graphPath(cwd: string): string {
+  return path.join(substrataDir(cwd), 'index', 'graph.sqlite');
+}
+
+/**
  * Repo-relative footprint path of the form
  * `YYYY/MM/YYYY-MM-DD-<slug>-<suffix>.md` (forward slashes).
  */

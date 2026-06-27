@@ -1,10 +1,20 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
-import { ensureGitignore, substrataDir, upsertAgentsMd, type ChangeResult } from '@substrata/core';
-import { buildIndex } from '@substrata/search';
+import {
+  ensureGitignore,
+  substrataDir,
+  upsertAgentsMd,
+  upsertClaudeMd,
+  upsertCursorRule,
+  upsertGeminiMd,
+  type ChangeResult,
+} from '@substrata/core';
+import { buildGraph, buildIndex } from '@substrata/search';
 import type { Command } from 'commander';
 
+import { codexClient } from '../mcp-clients/codex';
 import { mergeMcpJson } from '../mcp-clients/json-config';
 import { SUBSTRATA_MCP_SPEC } from '../mcp-clients/registry';
 import { CliError, out, requireConfig, resolveCwd } from '../util';
@@ -51,7 +61,7 @@ export function registerUpgradeCommand(program: Command): void {
           'No .substrata directory found. Run `npx substrata-cli init` to set up this repository.',
         );
       }
-      await requireConfig(cwd);
+      const config = await requireConfig(cwd);
 
       report(ensureGitignore(cwd), '.gitignore');
 
@@ -66,21 +76,53 @@ export function registerUpgradeCommand(program: Command): void {
         out.info('AGENTS.md: no Substrata section found — skipped (run `init` to add one).');
       }
 
+      // Refresh per-editor rule files only where init previously wrote them
+      // (so a version bump propagates new guidance like the graph tools).
+      for (const { label, file, refresh } of [
+        { label: 'CLAUDE.md section', file: path.join(cwd, 'CLAUDE.md'), refresh: upsertClaudeMd },
+        { label: 'GEMINI.md section', file: path.join(cwd, 'GEMINI.md'), refresh: upsertGeminiMd },
+      ]) {
+        if (existsSync(file) && readFileSync(file, 'utf8').includes('<!-- substrata:start -->')) {
+          report(refresh(cwd), label);
+        }
+      }
+      const cursorRule = path.join(cwd, '.cursor', 'rules', 'substrata.mdc');
+      if (existsSync(cursorRule)) {
+        report(upsertCursorRule(cwd), 'Cursor rule');
+      }
+
       // Re-merge existing MCP registrations so drifted entries pick up the
       // current server spec. Never registers new clients.
       const mcpConfigs = [
         { label: 'Claude Code (.mcp.json)', file: path.join(cwd, '.mcp.json') },
         { label: 'Cursor (.cursor/mcp.json)', file: path.join(cwd, '.cursor', 'mcp.json') },
+        {
+          label: 'Gemini (.gemini/settings.json)',
+          file: path.join(cwd, '.gemini', 'settings.json'),
+        },
       ];
       for (const { label, file } of mcpConfigs) {
         if (hasSubstrataMcpEntry(file)) {
           report(mergeMcpJson(file, SUBSTRATA_MCP_SPEC), label);
         }
       }
+      // Codex is a global TOML config; refresh only if its managed block exists.
+      const codexConfig = path.join(homedir(), '.codex', 'config.toml');
+      if (
+        existsSync(codexConfig) &&
+        readFileSync(codexConfig, 'utf8').includes('# >>> substrata >>>')
+      ) {
+        report(await codexClient.register(cwd, SUBSTRATA_MCP_SPEC), 'Codex (~/.codex/config.toml)');
+      }
 
       if (opts.index !== false) {
         await buildIndex(cwd);
-        out.ok('Search index rebuilt.');
+        if (config.graph.enabled) {
+          await buildGraph(cwd);
+          out.ok('Search + graph index rebuilt.');
+        } else {
+          out.ok('Search index rebuilt.');
+        }
       }
 
       out.plain('');

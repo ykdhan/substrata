@@ -9,6 +9,7 @@ import {
   installSecretHook,
   renderConfig,
   upsertAgentsMd,
+  upsertEditorRules,
   writeShellEnv,
   type AttributionEnv,
   type ChangeResult,
@@ -39,6 +40,7 @@ export type InitFlags = {
   requester?: string;
   env?: boolean; // --no-env => false
   agentsMd?: boolean; // --no-agents-md => false
+  editorRules?: boolean; // --no-editor-rules => false
   mcp?: boolean; // --no-mcp => false
   mcpClient?: string[];
   gitignore?: boolean; // --no-gitignore => false
@@ -58,6 +60,7 @@ type Answers = {
   withHook: boolean;
   installClaudeHooks: boolean;
   writeAgentsMd: boolean;
+  writeEditorRules: boolean;
   writeGitignore: boolean;
   mcpClients: McpClient[];
 };
@@ -186,6 +189,14 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
           defaultValue: true,
         });
 
+  const writeEditorRules =
+    flags.editorRules === false
+      ? false
+      : await promptConfirm({
+          message: 'Generate per-editor rules (CLAUDE.md, GEMINI.md, .cursor/rules)?',
+          defaultValue: true,
+        });
+
   const writeGitignore = flags.gitignore !== false;
 
   const mcpClients = await resolveMcpClients(cwd, flags);
@@ -212,6 +223,7 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
     withHook,
     installClaudeHooks: installHooks,
     writeAgentsMd,
+    writeEditorRules,
     writeGitignore,
     mcpClients,
   };
@@ -243,6 +255,10 @@ async function buildPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 
   if (answers.writeAgentsMd) {
     changes.push(upsertAgentsMd(cwd, true));
+  }
+
+  if (answers.writeEditorRules) {
+    changes.push(...upsertEditorRules(cwd, true));
   }
 
   if (answers.withHook) {
@@ -281,6 +297,10 @@ async function applyPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 
   if (answers.writeAgentsMd) {
     applied.push(upsertAgentsMd(cwd, false));
+  }
+
+  if (answers.writeEditorRules) {
+    applied.push(...upsertEditorRules(cwd, false));
   }
 
   if (answers.withHook) {
