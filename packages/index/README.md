@@ -1,4 +1,4 @@
-# @substrata/search
+# @substrata/index
 
 SQLite FTS5 search index for [Substrata](https://github.com/ykdhan/substrata) — shared project memory for AI engineering agents.
 

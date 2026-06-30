@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 
 import { registerAddCommand } from './commands/add';
+import { registerBenchCommand } from './commands/bench';
 import { registerContextCommand } from './commands/context';
 import { registerDoctorCommand } from './commands/doctor';
 import { registerGcCommand } from './commands/gc';
@@ -55,6 +56,7 @@ export function buildProgram(): Command {
   registerGcCommand(program);
   registerGraphCommand(program);
   registerMemoryUpdateCommand(program);
+  registerBenchCommand(program);
   registerHookCommand(program);
   registerUpgradeCommand(program);
   registerMcpCommand(program);

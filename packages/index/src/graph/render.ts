@@ -24,8 +24,9 @@ import type { HybridRanked, HybridResult } from './hybrid';
 const HEADER = 'Relevant Substrata context (graph-aware):';
 const CHARS_PER_TOKEN = 3.5;
 
-/** Approximate token count for a string (ceil(chars / 3.5)). */
-function estimateTokens(text: string): number {
+/** Approximate token count for a string (ceil(chars / 3.5)). Exported so the
+ * benchmark measures tokens with the exact same approximation. */
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 

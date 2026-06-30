@@ -1,15 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import {
-  GITIGNORE_LINES,
-  claudeHooksInstalled,
-  listFootprints,
-  listMemoryDocuments,
-  loadConfig,
-  substrataDir,
-} from '@substrata/core';
-import { getIndexStatus, readStats } from '@substrata/search';
+import { listFootprints, listMemoryDocuments, loadConfig, substrataDir } from '@substrata/core';
+import { gitignoreLinesFor } from '@substrata/editor-integrations';
+import { claudeHooksInstalled } from '@substrata/hooks';
+import { getIndexStatus, readStats } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, resolveCwd } from '../util';
@@ -56,15 +51,41 @@ export async function runDoctor(cwd: string): Promise<number> {
     out.info(`index stale (${status.reason}) — run \`substrata index\``);
   }
 
-  // gitignore covers index/ and cache/ (else the generated DB would be committed)
+  // gitignore must always keep the local telemetry log private; the index DB is
+  // ignored in 'local' mode and intentionally committed in 'shared' mode.
   const gitignorePath = path.join(cwd, '.gitignore');
   const gitignore = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
   const ignoredLines = new Set(gitignore.split(/\r?\n/).map((l) => l.trim()));
-  const indexCovered = ignoredLines.has('.substrata/index/') || ignoredLines.has('.substrata/');
-  if (indexCovered) {
-    out.ok('gitignore covers index/ and cache/');
+  const blanketIgnored = ignoredLines.has('.substrata/') || ignoredLines.has('.substrata/index/');
+
+  let sharing: 'local' | 'shared' = 'local';
+  try {
+    sharing = (await loadConfig(cwd)).storage.sharing;
+  } catch {
+    // fall back to local; a broken config is already reported elsewhere.
+  }
+
+  const telemetryCovered = ignoredLines.has('.substrata/local/') || ignoredLines.has('.substrata/');
+  if (!telemetryCovered) {
+    out.err('gitignore would commit the local telemetry log — add: .substrata/local/');
+    failures += 1;
+  }
+
+  if (sharing === 'shared') {
+    if (blanketIgnored) {
+      out.warn(
+        'storage.sharing=shared but .gitignore still ignores .substrata/index/ — the shared DB will NOT be committed.',
+      );
+      out.plain('    Re-run `substrata init` (or `substrata upgrade`) to refresh .gitignore.');
+    } else if (telemetryCovered) {
+      out.ok('gitignore allows the shared index DB to be committed (telemetry stays local)');
+    }
+  } else if (blanketIgnored) {
+    out.ok('gitignore covers index/ and cache/ (local mode)');
   } else {
-    out.err(`gitignore would commit the generated DB — add: ${GITIGNORE_LINES.join(', ')}`);
+    out.err(
+      `gitignore would commit the generated DB — add: ${gitignoreLinesFor('local').join(', ')}`,
+    );
     failures += 1;
   }
 

@@ -1,4 +1,4 @@
-import { search } from '@substrata/search';
+import { search } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { renderSearchResults } from '../render/table';

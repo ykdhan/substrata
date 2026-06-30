@@ -141,6 +141,15 @@ export type SubstrataConfig = {
     footprints_dir: string;
     memory_dir: string;
     index_path: string;
+    /**
+     * How the generated index/graph SQLite DB is shared:
+     *   - 'local'  : the DB lives in a gitignored path, private to each developer
+     *                (each rebuilds it locally; default, preserves prior behavior).
+     *   - 'shared' : the DB is committed to the repo so a team shares one prebuilt
+     *                index (instant performance on clone, no rebuild step). The
+     *                telemetry access log stays local in BOTH modes.
+     */
+    sharing: 'local' | 'shared';
   };
   search: {
     default_limit: number;
@@ -214,6 +223,8 @@ export type SubstrataConfig = {
 export type InitOptions = {
   /** Project name; defaults to the directory basename when omitted. */
   projectName?: string;
+  /** Index DB sharing mode written into config.yml (defaults to 'local'). */
+  sharing?: 'local' | 'shared';
 };
 
 export type ChangeAction = 'create' | 'update' | 'skip';

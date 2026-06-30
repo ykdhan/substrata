@@ -2,16 +2,16 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import { substrataDir, type ChangeResult } from '@substrata/core';
 import {
+  ensureGitattributes,
   ensureGitignore,
-  substrataDir,
   upsertAgentsMd,
   upsertClaudeMd,
   upsertCursorRule,
   upsertGeminiMd,
-  type ChangeResult,
-} from '@substrata/core';
-import { buildGraph, buildIndex } from '@substrata/search';
+} from '@substrata/editor-integrations';
+import { buildGraph, buildIndex } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { codexClient } from '../mcp-clients/codex';
@@ -63,7 +63,12 @@ export function registerUpgradeCommand(program: Command): void {
       }
       const config = await requireConfig(cwd);
 
-      report(ensureGitignore(cwd), '.gitignore');
+      // Honor the configured sharing mode so upgrading a shared repo keeps the
+      // committed DB shareable instead of resetting .gitignore to local mode.
+      report(ensureGitignore(cwd, false, { sharing: config.storage.sharing }), '.gitignore');
+      if (config.storage.sharing === 'shared') {
+        report(ensureGitattributes(cwd), '.gitattributes');
+      }
 
       // Refresh the AGENTS.md section only where init previously wrote it.
       const agentsPath = path.join(cwd, 'AGENTS.md');

@@ -37,33 +37,52 @@ SQLite (via FTS5) is used only for search and ranking. It must always be regener
  search results
 ```
 
-The `.substrata/index/footprint.sqlite` file is **gitignored**. After a clone, the index is absent; `search` and `context` rebuild it lazily on first use.
+In the default `local` storage mode the `.substrata/index/` DB is **gitignored**: after a clone the index is absent, and `search`/`context` rebuild it lazily on first use. In `shared` mode (`storage.sharing: shared`) the index/graph DB is **committed** so a team shares one prebuilt index; the telemetry access log (`.substrata/local/`) stays gitignored in **both** modes. See the README "Sharing the index with your team" section.
 
 ## Package Responsibilities
 
 ### `@substrata/core`
 
-Core file model and setup.
+Pure domain file model (no editor/project setup, no hooks).
 
 - **Type system**: `Footprint`, `MemoryDocument`, `SearchResult`, `WriteFootprintInput`, etc.
 - **Parsing**: load frontmatter, parse Markdown sections, extract metadata
 - **Writing**: create/update footprint and memory files with random-suffix IDs
 - **ID generation**: `fp_YYYYMMDD_<slug>_<base32-6>` format ensures no same-day collisions
 - **Redaction**: key-based (recursive) + content/pattern scanning
-- **Config**: load and validate `.substrata/config.yml`
-- **Setup writers**: idempotent, dry-runnable functions for `.gitignore`, shell rc, AGENTS.md, pre-commit hook
+- **Config**: load and validate `.substrata/config.yml` (incl. `storage.sharing`)
+- **Paths**: `.substrata/` path helpers — index/graph under `index/`, telemetry under `local/`
+- **Scaffold**: `initProject` creates the `.substrata/` directory tree
 - **Supersede**: flip status and links when one footprint replaces another
 
-### `@substrata/search`
+### `@substrata/index`
 
-Search index, querying, ranking, and freshness.
+Search index, querying, ranking, freshness, and the token/latency benchmark.
 
 - **SQLite schema**: FTS5 virtual table for title/tags/files/content, plus index metadata
 - **Indexing**: scan footprints and memory files, populate index
-- **Querying**: keyword search with file/tag filters
+- **Querying**: keyword search with file/tag filters; hybrid FTS + graph retrieval
 - **Ranking**: BM25 score + boosts for recency, file overlap, architecture decisions + penalties for superseded/deprecated
 - **Freshness**: track source file count and mtime; detect missing/stale/fresh index
 - **Auto-rebuild**: lazy rebuild on missing or stale
+- **Telemetry**: local read/write access log under `.substrata/local/` (never committed)
+- **Benchmark**: `runBenchmark` — whole-corpus read vs budget-bounded retrieval (powers `substrata bench`)
+
+### `@substrata/editor-integrations`
+
+Writers that integrate Substrata into the surrounding project/editor environment (everything written OUTSIDE `.substrata/`).
+
+- **Editor rules**: `CLAUDE.md` / `GEMINI.md` / `AGENTS.md` marker sections + Cursor `.mdc` rule (shared `SUBSTRATA_RULES_MARKDOWN`)
+- **Project setup**: mode-aware `.gitignore`, `.gitattributes` (binary DB in shared mode), shell-rc attribution env
+- **Pre-commit secret hook** and the **change-plan** renderer
+- **Dependency injection**: adds `substrata-cli` to the project's `package.json` devDependencies
+
+### `@substrata/hooks`
+
+Claude Code lifecycle hook primitives.
+
+- **Protocol adapter**: stdin/stdout hook protocol (`emitContext`, `emitStopDecision`, `readHookPayload`, `runHook`)
+- **Installer**: idempotent `.claude/settings.json` lifecycle-hook install/remove
 
 ### `substrata-cli` (published as the single npm package)
 

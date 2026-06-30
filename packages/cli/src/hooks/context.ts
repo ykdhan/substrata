@@ -4,7 +4,7 @@ import {
   type Footprint,
   type SubstrataConfig,
 } from '@substrata/core';
-import { hybridSearch, renderGraphContext, search, type HybridResult } from '@substrata/search';
+import { hybridSearch, renderGraphContext, search, type HybridResult } from '@substrata/index';
 
 import { ensureFreshIndex } from '../commands/auto-index';
 import { renderContext } from '../render/context';

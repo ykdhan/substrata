@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { loadConfig, type SubstrataConfig } from '@substrata/core';
-import { logAccess, type AccessEntry } from '@substrata/search';
+import { logAccess, type AccessEntry } from '@substrata/index';
 import pc from 'picocolors';
 
 /**

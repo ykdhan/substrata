@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import type { AttributionEnv, ChangeResult } from '../types';
+import type { AttributionEnv, ChangeResult } from '@substrata/core';
 
 /**
  * Write a Substrata env block to a shell rc file, delimited by markers so a

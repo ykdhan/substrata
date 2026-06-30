@@ -1,20 +1,29 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
 import {
-  ensureGitignore,
+  configPath,
   initProject,
-  installClaudeHooks,
-  installSecretHook,
   renderConfig,
-  upsertAgentsMd,
-  upsertEditorRules,
-  writeShellEnv,
   type AttributionEnv,
   type ChangeResult,
 } from '@substrata/core';
+import {
+  ensureCliDependency,
+  ensureGitattributes,
+  ensureGitignore,
+  installSecretHook,
+  upsertAgentsMd,
+  upsertEditorRules,
+  writeShellEnv,
+  type StorageSharing,
+} from '@substrata/editor-integrations';
+import { installClaudeHooks } from '@substrata/hooks';
 import pc from 'picocolors';
+import { parseDocument, type Document } from 'yaml';
+
+import pkg from '../../package.json';
 
 import {
   detectMcpClients,
@@ -48,6 +57,8 @@ export type InitFlags = {
   withHook?: boolean;
   claudeHooks?: boolean; // --no-claude-hooks => false
   index?: boolean; // --no-index => false
+  sharing?: string; // --sharing <local|shared>
+  cliDep?: boolean; // --no-cli-dep => false
   printConfig?: boolean;
 };
 
@@ -62,8 +73,60 @@ type Answers = {
   writeAgentsMd: boolean;
   writeEditorRules: boolean;
   writeGitignore: boolean;
+  sharing: StorageSharing;
+  addCliDep: boolean;
   mcpClients: McpClient[];
 };
+
+/** Read storage.sharing from an existing config.yml, if present (best-effort). */
+function existingSharing(cwd: string): StorageSharing | undefined {
+  const file = path.join(cwd, '.substrata', 'config.yml');
+  try {
+    const raw = readFileSync(file, 'utf8');
+    return /^\s*sharing:\s*shared\s*$/m.test(raw) ? 'shared' : 'local';
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Set `storage.sharing` in an existing config.yml via the YAML AST, preserving
+ * comments/formatting and handling quoted or missing values without risking a
+ * duplicate key. Leaves a fresh config effectively untouched (initProject already
+ * wrote the right value). Best-effort: a malformed file is left alone.
+ */
+function syncConfigSharing(cwd: string, sharing: StorageSharing): void {
+  const file = configPath(cwd);
+  let raw: string;
+  try {
+    raw = readFileSync(file, 'utf8');
+  } catch {
+    return;
+  }
+  let doc: Document;
+  try {
+    doc = parseDocument(raw);
+  } catch {
+    return;
+  }
+  if (doc.errors.length > 0) return;
+  doc.setIn(['storage', 'sharing'], sharing);
+  const next = doc.toString();
+  if (next !== raw) writeFileSync(file, next, 'utf8');
+}
+
+/** Resolve the index-sharing mode from flags / existing config / a prompt. */
+async function resolveSharing(cwd: string, flags: InitFlags): Promise<StorageSharing> {
+  if (flags.sharing === 'shared' || flags.sharing === 'local') return flags.sharing;
+  const current = existingSharing(cwd);
+  if (flags.yes) return current ?? 'local';
+  const shared = await promptConfirm({
+    message:
+      'Share the index DB with your team (commit it to the repo)? Otherwise it stays local + gitignored.',
+    defaultValue: current === 'shared',
+  });
+  return shared ? 'shared' : 'local';
+}
 
 /** Detect the user's shell rc file from $SHELL, defaulting to ~/.zshrc. */
 function detectShellRc(): string {
@@ -198,6 +261,8 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
         });
 
   const writeGitignore = flags.gitignore !== false;
+  const sharing = await resolveSharing(cwd, flags);
+  const addCliDep = flags.cliDep !== false;
 
   const mcpClients = await resolveMcpClients(cwd, flags);
 
@@ -225,6 +290,8 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
     writeAgentsMd,
     writeEditorRules,
     writeGitignore,
+    sharing,
+    addCliDep,
     mcpClients,
   };
 }
@@ -239,11 +306,19 @@ async function buildPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
   changes.push({
     path: path.join(cwd, '.substrata'),
     action: existsSync(path.join(cwd, '.substrata', 'config.yml')) ? 'skip' : 'create',
-    description: 'Substrata scaffold (config, README, footprints, memory, templates)',
+    description: `Substrata scaffold (config, README, footprints, memory, templates) — ${answers.sharing} index`,
   });
 
   if (answers.writeGitignore) {
-    changes.push(ensureGitignore(cwd, true));
+    changes.push(ensureGitignore(cwd, true, { sharing: answers.sharing }));
+  }
+
+  if (answers.sharing === 'shared') {
+    changes.push(ensureGitattributes(cwd, true));
+  }
+
+  if (answers.addCliDep) {
+    changes.push(ensureCliDependency(cwd, pkg.version, true));
   }
 
   if (
@@ -280,10 +355,23 @@ async function buildPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 async function applyPlan(cwd: string, answers: Answers): Promise<ChangeResult[]> {
   const applied: ChangeResult[] = [];
 
-  applied.push(...(await initProject(cwd, { projectName: answers.projectName })));
+  applied.push(
+    ...(await initProject(cwd, { projectName: answers.projectName, sharing: answers.sharing })),
+  );
+  // initProject never overwrites an existing config.yml, so in update mode (or on
+  // a legacy config) sync storage.sharing to the resolved mode surgically.
+  syncConfigSharing(cwd, answers.sharing);
 
   if (answers.writeGitignore) {
-    applied.push(ensureGitignore(cwd, false));
+    applied.push(ensureGitignore(cwd, false, { sharing: answers.sharing }));
+  }
+
+  if (answers.sharing === 'shared') {
+    applied.push(ensureGitattributes(cwd, false));
+  }
+
+  if (answers.addCliDep) {
+    applied.push(ensureCliDependency(cwd, pkg.version, false));
   }
 
   if (
@@ -337,7 +425,8 @@ function printEnvSnippet(attribution: AttributionEnv): void {
 /** Render the resolved config.yml without writing (for --print-config). */
 export function printResolvedConfig(cwd: string, flags: InitFlags): void {
   const name = flags.project ?? defaultProjectName(cwd);
-  out.plain(renderConfig(name));
+  const sharing: StorageSharing = flags.sharing === 'shared' ? 'shared' : 'local';
+  out.plain(renderConfig(name, { sharing }));
 }
 
 export type WizardResult = {

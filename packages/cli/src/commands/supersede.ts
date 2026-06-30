@@ -1,5 +1,5 @@
 import { NotFoundError, supersedeFootprint } from '@substrata/core';
-import { buildIndex } from '@substrata/search';
+import { buildIndex } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { CliError, out, requireConfig, resolveCwd } from '../util';

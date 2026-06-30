@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { configPath } from '@substrata/core';
-import { buildIndex } from '@substrata/search';
+import { buildIndex } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { printResolvedConfig, runInitWizard, type InitFlags } from '../wizard/init-wizard';
@@ -52,6 +52,11 @@ export function registerInitCommand(program: Command): void {
     .option('--claude-hooks', 'Install Claude Code lifecycle hooks (no prompt)')
     .option('--no-claude-hooks', 'Skip Claude Code lifecycle hooks')
     .option('--no-index', 'Skip building the initial index')
+    .option(
+      '--sharing <mode>',
+      'Index DB sharing: "local" (gitignored, private) or "shared" (committed, team)',
+    )
+    .option('--no-cli-dep', "Don't add substrata-cli to the project's package.json devDependencies")
     .option('--print-config', 'Print resolved config.yml without writing anything')
     .action(async (opts: InitCommandOptions, command: Command) => {
       const cwd = resolveCwd(command.parent?.opts());
@@ -72,6 +77,8 @@ export function registerInitCommand(program: Command): void {
         withHook: opts.withHook,
         claudeHooks: opts.claudeHooks,
         index: opts.index,
+        sharing: opts.sharing,
+        cliDep: opts.cliDep,
         printConfig: opts.printConfig,
       };
 
@@ -133,6 +140,8 @@ type InitCommandOptions = {
   withHook?: boolean;
   claudeHooks?: boolean;
   index?: boolean;
+  sharing?: string;
+  cliDep?: boolean;
   printConfig?: boolean;
 };
 

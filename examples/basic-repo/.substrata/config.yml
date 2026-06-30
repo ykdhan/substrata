@@ -6,6 +6,9 @@ storage:
   footprints_dir: .substrata/footprints
   memory_dir: .substrata/memory
   index_path: .substrata/index/footprint.sqlite
+  # 'local' = index DB is gitignored + rebuilt per developer (default).
+  # 'shared' = commit the DB so the team shares one prebuilt index.
+  sharing: local
 
 search:
   default_limit: 8

@@ -52,6 +52,26 @@ describe('upgrade', () => {
     expect(agents.split('<!-- substrata:start -->').length).toBe(2);
   });
 
+  it('preserves shared mode: does not re-ignore the committed index DB', async () => {
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--sharing', 'shared']);
+
+    const result = await runCommand(cwd, ['upgrade', '--no-index']);
+    expect(result.code).toBe(0);
+
+    const lines = readFileSync(path.join(cwd, '.gitignore'), 'utf8')
+      .split('\n')
+      .map((l) => l.trim());
+    // The committed DB must stay committable after upgrade.
+    expect(lines).not.toContain('.substrata/index/');
+    expect(lines).toContain('.substrata/index/*.sqlite-journal');
+    // Telemetry stays private.
+    expect(lines).toContain('.substrata/local/');
+    // .gitattributes is (re)asserted in shared mode.
+    expect(readFileSync(path.join(cwd, '.gitattributes'), 'utf8')).toContain(
+      '.substrata/index/*.sqlite binary',
+    );
+  });
+
   it('does not add an AGENTS.md section where none exists', async () => {
     await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-agents-md']);
     const result = await runCommand(cwd, ['upgrade']);

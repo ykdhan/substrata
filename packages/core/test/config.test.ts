@@ -22,6 +22,20 @@ describe('loadConfig', () => {
     expect(config.security.block_on_secret).toBe(true);
   });
 
+  it('defaults storage.sharing to "local"', async () => {
+    const config = await loadConfig(cwd);
+    expect(config.storage.sharing).toBe('local');
+  });
+
+  it('honors storage.sharing override (legacy config without it still defaults to local)', async () => {
+    await writeFile(
+      configPath(cwd),
+      ['schema_version: 1', 'project:', '  name: x', 'storage:', '  sharing: shared'].join('\n'),
+      'utf8',
+    );
+    expect((await loadConfig(cwd)).storage.sharing).toBe('shared');
+  });
+
   it('deep-merges user overrides over defaults', async () => {
     await writeFile(
       configPath(cwd),

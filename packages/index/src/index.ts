@@ -1,4 +1,4 @@
-// Public API for @substrata/search. See plan §11 + §15 Phase 4.
+// Public API for @substrata/index. See plan §11 + §15 Phase 4.
 
 export { buildIndex } from './indexer';
 export type { BuildIndexOptions } from './indexer';
@@ -28,6 +28,9 @@ export type { OpenIndexDbOptions } from './sqlite';
 
 export { logAccess, readStats } from './telemetry';
 export type { AccessEntry, AccessOp, AccessSource, AccessStats } from './telemetry';
+
+export { runBenchmark } from './bench';
+export type { BenchQueryResult, BenchmarkOptions, BenchmarkResult } from './bench';
 
 export { evaluateMetaFreshness, sourceStats } from './freshness';
 
@@ -77,5 +80,5 @@ export type {
 } from './graph/query';
 export { hybridSearch } from './graph/hybrid';
 export type { HybridOrigin, HybridRanked, HybridResult, HybridSearchOptions } from './graph/hybrid';
-export { renderGraphContext } from './graph/render';
+export { estimateTokens, renderGraphContext } from './graph/render';
 export type { GraphContextResult, GraphContextSource } from './graph/render';

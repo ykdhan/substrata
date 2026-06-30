@@ -1,4 +1,4 @@
-import type { ChangeResult } from '../types';
+import type { ChangeResult } from '@substrata/core';
 
 /**
  * Aggregate ChangeResults into a printable setup plan. Pure (no I/O).

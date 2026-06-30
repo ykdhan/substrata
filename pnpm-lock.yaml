@@ -60,12 +60,18 @@ importers:
       '@substrata/core':
         specifier: workspace:*
         version: link:../core
+      '@substrata/editor-integrations':
+        specifier: workspace:*
+        version: link:../editor-integrations
+      '@substrata/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@substrata/index':
+        specifier: workspace:*
+        version: link:../index
       '@substrata/mcp-server':
         specifier: workspace:*
         version: link:../mcp-server
-      '@substrata/search':
-        specifier: workspace:*
-        version: link:../search
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.21
@@ -80,26 +86,27 @@ importers:
         specifier: ^22.0.0
         version: 22.19.21
 
-  packages/mcp-server:
+  packages/editor-integrations:
     dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.12.0
-        version: 1.29.0(zod@3.25.76)
       '@substrata/core':
         specifier: workspace:*
         version: link:../core
-      '@substrata/search':
-        specifier: workspace:*
-        version: link:../search
-      zod:
-        specifier: ^3.24.0
-        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.21
 
-  packages/search:
+  packages/hooks:
+    dependencies:
+      '@substrata/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.21
+
+  packages/index:
     dependencies:
       '@substrata/core':
         specifier: workspace:*
@@ -111,6 +118,25 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.0
         version: 7.6.13
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.21
+
+  packages/mcp-server:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.12.0
+        version: 1.29.0(zod@3.25.76)
+      '@substrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@substrata/index':
+        specifier: workspace:*
+        version: link:../index
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+    devDependencies:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.21

@@ -10,7 +10,7 @@ import {
   type GraphBridge,
   type GraphRelatedResult,
   type GraphStats,
-} from '@substrata/search';
+} from '@substrata/index';
 import type { Command } from 'commander';
 
 import { renderGraphContext } from '../render/graph-context';

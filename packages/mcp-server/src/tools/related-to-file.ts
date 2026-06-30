@@ -1,7 +1,7 @@
 // substrata_related_to_file tool logic. See plan §9.
 
 import type { SearchResult } from '@substrata/core';
-import { getRelatedToFile } from '@substrata/search';
+import { getRelatedToFile } from '@substrata/index';
 import { z } from 'zod';
 
 import { ensureIndexFresh } from './search';

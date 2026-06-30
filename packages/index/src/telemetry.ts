@@ -9,9 +9,11 @@ import Database from 'better-sqlite3';
  * but we had no way to know whether they were ever *read*, so improvement was
  * unmeasurable. Each read appends one row here; `substrata stats` reports on it.
  *
- * Privacy: this DB is local and gitignored (it lives under `.substrata/index/`),
- * and nothing is ever transmitted. It is a SEPARATE file from the search index
- * so it is not wiped by an index rebuild.
+ * Privacy: this DB lives under `.substrata/local/` (NOT `.substrata/index/`),
+ * which is gitignored in BOTH storage sharing modes — so query text is never
+ * committed even when the index DB is shared with a team — and nothing is ever
+ * transmitted. It is a SEPARATE file from the search index so it is not wiped by
+ * an index rebuild.
  *
  * Logging is best-effort: failures are swallowed so telemetry can never break a
  * read path or a hook.

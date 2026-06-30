@@ -1,4 +1,4 @@
-# @substrata/search
+# @substrata/index
 
 ## 0.2.0
 

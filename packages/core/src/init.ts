@@ -114,7 +114,7 @@ export async function initProject(cwd: string, options: InitOptions = {}): Promi
   ];
 
   const files: FileSpec[] = [
-    { absPath: configPath(cwd), contents: renderConfig(projectName) },
+    { absPath: configPath(cwd), contents: renderConfig(projectName, { sharing: options.sharing }) },
     { absPath: path.join(substrataDir(cwd), 'README.md'), contents: README_CONTENTS },
     { absPath: path.join(templatesDir(cwd), 'footprint.md'), contents: FOOTPRINT_TEMPLATE },
     { absPath: path.join(templatesDir(cwd), 'memory.md'), contents: MEMORY_TEMPLATE },

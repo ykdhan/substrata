@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import type { ChangeResult } from '../types';
+import type { ChangeResult } from '@substrata/core';
 
 import { SUBSTRATA_RULES_MARKDOWN } from './agents-md';
 import { upsertMarkerSection } from './markers';

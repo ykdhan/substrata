@@ -1,7 +1,7 @@
 // substrata_search tool logic. See plan §9.
 
 import type { SearchResult } from '@substrata/core';
-import { buildIndex, getIndexStatus, search } from '@substrata/search';
+import { buildIndex, getIndexStatus, search } from '@substrata/index';
 import { z } from 'zod';
 
 import { recordRead } from './telemetry';

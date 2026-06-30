@@ -43,10 +43,12 @@ All checks must pass before pushing.
 
 ```
 packages/
-  core/           # File model, parsing, redaction, setup writers (AGENTS.md, editor rules)
-  search/         # SQLite FTS + 🕸️ graph index (src/graph/*): extraction, hybrid retrieval, ranking
-  cli/            # Commands, wizard, MCP client registry (claude/cursor/windsurf/codex/gemini)
-  mcp-server/     # MCP server and tools (5 core + 4 graph)
+  core/                  # Pure domain: file model, parsing, redaction, config, IDs, supersede
+  index/                 # SQLite FTS + 🕸️ graph index (src/graph/*): extraction, hybrid retrieval, ranking, bench
+  editor-integrations/   # Setup writers: .gitignore, .gitattributes, shell rc, AGENTS.md, editor rules, secret hook, cli devDep
+  hooks/                 # Claude Code lifecycle hook primitives (stdin/stdout protocol + settings installer)
+  cli/                   # Commands, wizard, MCP client registry (claude/cursor/windsurf/codex/gemini)
+  mcp-server/            # MCP server and tools (5 core + 4 graph)
 ```
 
 Each package has:
@@ -55,7 +57,7 @@ Each package has:
 - `test/` — vitest tests
 - `dist/` — built output (generated)
 
-The graph layer lives in `packages/search/src/graph/` (schema, extraction,
+The graph layer lives in `packages/index/src/graph/` (schema, extraction,
 indexer, query, hybrid retrieval, renderer) and is **strictly additive + fail-open**
 on top of FTS — see [docs/graph.md](docs/graph.md).
 
@@ -162,13 +164,13 @@ On release, changesets are combined, versions are bumped, and CHANGELOG is updat
 2. Add it to `MCP_CLIENTS` in `packages/cli/src/mcp-clients/registry.ts` (this
    auto-wires it into `init` detection and `substrata mcp install`)
 3. If the editor has a native rules file, add a writer in
-   `packages/core/src/setup/editor-rules.ts` (reuse `SUBSTRATA_RULES_MARKDOWN`)
+   `packages/editor-integrations/src/editor-rules.ts` (reuse `SUBSTRATA_RULES_MARKDOWN`)
 4. Add tests in `packages/cli/test/mcp-clients.test.ts`
 
 ### Working on Search / Graph
 
-1. FTS ranking: `packages/search/src/ranking.ts` (+ `test/ranking.test.ts`)
-2. Graph extraction/expansion: `packages/search/src/graph/*` (+ `test/graph.test.ts`)
+1. FTS ranking: `packages/index/src/ranking.ts` (+ `test/ranking.test.ts`)
+2. Graph extraction/expansion: `packages/index/src/graph/*` (+ `test/graph.test.ts`)
 3. Keep the graph layer additive + fail-open; update `docs/graph.md` if user-visible
 
 ## ❓ Questions?

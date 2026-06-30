@@ -1,4 +1,4 @@
-import { buildGraph, buildIndex } from '@substrata/search';
+import { buildGraph, buildIndex } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, requireConfig, resolveCwd } from '../util';

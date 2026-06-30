@@ -1,8 +1,8 @@
 {
-  "name": "@substrata/search",
+  "name": "@substrata/editor-integrations",
   "version": "0.2.0",
   "private": true,
-  "description": "SQLite FTS5 search index for Substrata footprints and memory",
+  "description": "Editor/project setup writers for Substrata: editor rule blocks, .gitignore, shell env, pre-commit secret hook, and the change-plan renderer",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,15 +22,16 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/ykdhan/substrata.git",
-    "directory": "packages/search"
+    "directory": "packages/editor-integrations"
   },
   "keywords": [
     "ai",
     "agents",
     "memory",
-    "search",
-    "sqlite",
-    "fts5"
+    "editor",
+    "claude-code",
+    "cursor",
+    "gemini"
   ],
   "scripts": {
     "build": "tsup",
@@ -38,11 +39,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@substrata/core": "workspace:*",
-    "better-sqlite3": "^12.0.0"
+    "@substrata/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0"
   }
 }

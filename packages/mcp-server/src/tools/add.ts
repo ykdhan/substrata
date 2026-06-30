@@ -7,7 +7,7 @@ import {
   writeFootprint,
   type WorkType,
 } from '@substrata/core';
-import { buildIndex } from '@substrata/search';
+import { buildIndex } from '@substrata/index';
 import { z } from 'zod';
 
 const WORK_TYPES = [

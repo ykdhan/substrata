@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { loadConfig } from '@substrata/core';
+import { emitContext, emitStopDecision } from '@substrata/hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { emitContext, emitStopDecision } from '../src/hooks/claude-code';
 import { buildGraphHookContext, buildHookContext, recentDigest } from '../src/hooks/context';
 import { makeTempRepo, removeDir, runCommand } from './helpers';
 

@@ -1,7 +1,7 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import type { ChangeResult } from '../types';
+import type { ChangeResult } from '@substrata/core';
 import { isSymlink } from './symlink';
 
 /**

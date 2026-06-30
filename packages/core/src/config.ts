@@ -35,6 +35,7 @@ export const defaultConfig: SubstrataConfig = {
     footprints_dir: '.substrata/footprints',
     memory_dir: '.substrata/memory',
     index_path: '.substrata/index/footprint.sqlite',
+    sharing: 'local',
   },
   search: {
     default_limit: 8,
@@ -143,11 +144,15 @@ export async function loadConfig(cwd: string): Promise<SubstrataConfig> {
   return deepMerge(base, parsed);
 }
 
-/** Render a config.yml file for `init`, overriding the project name. */
-export function renderConfig(projectName: string): string {
+/** Render a config.yml file for `init`, overriding the project name and (optionally) the storage sharing mode. */
+export function renderConfig(
+  projectName: string,
+  opts: { sharing?: 'local' | 'shared' } = {},
+): string {
   const config: SubstrataConfig = {
     ...defaultConfig,
     project: { name: projectName },
+    storage: { ...defaultConfig.storage, sharing: opts.sharing ?? defaultConfig.storage.sharing },
   };
   return stringifyYaml(config, { lineWidth: 0 });
 }

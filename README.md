@@ -154,6 +154,62 @@ no recent footprints, a low read:write ratio), and `substrata gc` reports
 duplicate/stale footprints — `gc --auto-supersede` links older duplicates to the
 newest so retrieval only surfaces the current one.
 
+### Sharing the index with your team (`storage.sharing`)
+
+`init` asks how the generated index/graph DB should be shared. The choice is
+written to `storage.sharing` in `.substrata/config.yml` and drives `.gitignore`:
+
+| Mode              | What happens                                                                                                           | Use when                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `local` (default) | The DB lives in a gitignored path; each developer rebuilds it locally from the committed markdown.                     | You want zero binary churn in Git.                       |
+| `shared`          | The `.sqlite` DB is **committed** to the repo, so teammates get a prebuilt index instantly on clone — no rebuild step. | You want the whole team to share one ready-to-use index. |
+
+```bash
+substrata init --sharing shared    # commit the DB; team shares one prebuilt index
+substrata init --sharing local     # keep it private + gitignored (default)
+```
+
+Design notes:
+
+- **Markdown stays the source of truth.** The committed DB is purely a performance
+  optimization — on a merge conflict you just rebuild: `substrata index` (FTS) +
+  `substrata graph build`. A `.gitattributes` entry marks the DBs binary.
+- **Privacy is preserved in both modes.** The telemetry access log lives under
+  `.substrata/local/` and is **always** gitignored, so query text is never
+  committed even when the index DB is shared. Nothing is ever transmitted.
+
+To make the install→use flow seamless for teammates who don't have Substrata
+installed globally, `init` also adds `substrata-cli` to your project's
+`package.json` `devDependencies` (when one exists), so a plain `npm install`
+after cloning is enough. Skip this with `--no-cli-dep`.
+
+### Benchmarking token + latency savings (`substrata bench`)
+
+Quantify what the index buys over the naive no-index path — an agent reading
+every footprint and memory file to find context:
+
+```bash
+substrata bench                                  # uses recent footprint titles as queries
+substrata bench "improve search performance"     # benchmark a specific query
+substrata bench --json                            # machine-readable
+```
+
+```
+Substrata benchmark — 6 doc(s) in the corpus
+
+  Baseline = read the whole .substrata markdown corpus (no index).
+  Substrata = FTS + graph retrieval rendered within the token budget.
+
+  query                               baseline  substrata   saved    b.ms    s.ms
+  improve search performance              2310        180     92%     1.2     3.4
+
+  average: 2310 → 180 tokens (92% fewer), 1.2ms → 3.4ms.
+```
+
+`baseline` is the token cost of dumping the whole corpus; `substrata` is the
+budget-bounded, relevance-ranked context the agent actually receives. Both use
+the same `ceil(chars / 3.5)` token approximation as the context renderer.
+
 ### Troubleshooting `better-sqlite3`
 
 Substrata uses `better-sqlite3` for the local FTS search index. It's a native module and can be tricky to install in some environments (Node version mismatch, ARM architecture, corporate proxy, etc.).
@@ -245,6 +301,7 @@ See **[docs/graph.md](docs/graph.md)** for the full design, node/edge model, and
 | `index`              | Build or rebuild the local search index (FTS + graph)                                                    |
 | `doctor`             | Verify repository setup                                                                                  |
 | `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log         |
+| `bench [queries…]`   | Benchmark token + latency cost: whole-corpus read vs Substrata indexed retrieval (`--json`)              |
 | `gc`                 | Report duplicate/stale footprints; `--auto-supersede` links older duplicates to the newest               |
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                           |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                        |
@@ -343,9 +400,10 @@ See `docs/mcp.md` for detailed tool signatures and `docs/graph.md` for the graph
   templates/
     footprint.md            # template for interactive add
     memory.md
-  index/                     # generated, gitignored — safe to delete and rebuild
+  index/                     # FTS + graph index — gitignored in 'local' mode, committed in 'shared' mode
     footprint.sqlite        # SQLite FTS search index
     graph.sqlite            # 🕸️ SQLite graph index (auxiliary, built alongside FTS)
+  local/                     # ALWAYS gitignored — never committed, even in shared mode
     access.sqlite           # local read/write telemetry (survives index rebuilds)
   cache/                     # temporary data (gitignored)
 ```
@@ -365,12 +423,14 @@ Never store secrets, credentials, API keys, tokens, or sensitive user data in Su
 
 ## 📦 Monorepo Packages
 
-| Package                 | Purpose                                                                       | Published                       |
-| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------- |
-| `substrata-cli`         | CLI binary, commands, init wizard, MCP client registry, MCP server entrypoint | yes — the only npm package      |
-| `@substrata/core`       | File model, footprint/memory parsing, redaction, ID generation, setup writers | no — bundled into substrata-cli |
-| `@substrata/search`     | SQLite FTS index, querying, ranking, freshness detection                      | no — bundled into substrata-cli |
-| `@substrata/mcp-server` | MCP server and tool implementations                                           | no — bundled into substrata-cli |
+| Package                          | Purpose                                                                        | Published                       |
+| -------------------------------- | ------------------------------------------------------------------------------ | ------------------------------- |
+| `substrata-cli`                  | CLI binary, commands, init wizard, MCP client registry, MCP server entrypoint  | yes — the only npm package      |
+| `@substrata/core`                | Pure domain: footprint/memory file model, parsing, config, redaction, IDs      | no — bundled into substrata-cli |
+| `@substrata/index`               | SQLite FTS + graph index, querying, ranking, freshness detection               | no — bundled into substrata-cli |
+| `@substrata/editor-integrations` | Editor rule blocks, .gitignore, shell env, pre-commit secret hook, plan render | no — bundled into substrata-cli |
+| `@substrata/hooks`               | Claude Code lifecycle hook primitives (protocol adapter + settings installer)  | no — bundled into substrata-cli |
+| `@substrata/mcp-server`          | MCP server and tool implementations                                            | no — bundled into substrata-cli |
 
 ## 🤝 Contributing
 
@@ -389,8 +449,10 @@ pnpm format
 
 ### Project Layout
 
-- `packages/core/` — file model, parsing, setup writers
-- `packages/search/` — SQLite FTS, indexing, ranking
+- `packages/core/` — pure domain: file model, parsing, config, redaction
+- `packages/index/` — SQLite FTS + graph index, indexing, ranking
+- `packages/editor-integrations/` — editor rule blocks, .gitignore/shell setup, secret hook
+- `packages/hooks/` — Claude Code lifecycle hook primitives
 - `packages/cli/` — commands, wizard, MCP client registry
 - `packages/mcp-server/` — MCP tools
 - `examples/basic-repo/` — reference example with smoke tests
