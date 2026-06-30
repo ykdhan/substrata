@@ -98,13 +98,25 @@ describe('getIndexStatus', () => {
     expect(await getIndexStatus(cwd)).toEqual({ state: 'fresh' });
   });
 
-  it('is stale (mtime) after touching a footprint file', async () => {
+  it('stays fresh when only mtime changes (content unchanged) — clone/checkout case', async () => {
     await buildIndex(cwd);
     const footprints = await listFootprints(cwd);
     const target = footprints[0]!;
+    // A clone/checkout/pull bumps mtime without changing content. The cheap mtime
+    // check would call this stale, but the content-hash fallback keeps it fresh,
+    // so a committed (shared) index is usable on clone with no rebuild.
     const future = new Date(Date.now() + 60_000);
     await utimes(target.filePath, future, future);
-    expect(await getIndexStatus(cwd)).toEqual({ state: 'stale', reason: 'mtime' });
+    expect(await getIndexStatus(cwd)).toEqual({ state: 'fresh' });
+  });
+
+  it('is stale after a real content change to a source file', async () => {
+    await buildIndex(cwd);
+    const footprints = await listFootprints(cwd);
+    const target = footprints[0]!;
+    const { appendFile } = await import('node:fs/promises');
+    await appendFile(target.filePath, '\n\nAppended content that changes the hash.\n', 'utf8');
+    expect((await getIndexStatus(cwd)).state).toBe('stale');
   });
 
   it('is stale (count) after adding a footprint', async () => {
@@ -116,5 +128,54 @@ describe('getIndexStatus', () => {
       status: 'completed',
     });
     expect(await getIndexStatus(cwd)).toEqual({ state: 'stale', reason: 'count' });
+  });
+});
+
+describe('deterministic build (shared-mode churn)', () => {
+  it('rebuilds content-deterministically (only SQLite header counters differ)', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { indexPath } = await import('@substrata/core');
+
+    await buildIndex(cwd);
+    const first = await readFile(indexPath(cwd));
+    await buildIndex(cwd);
+    const second = await readFile(indexPath(cwd));
+
+    // No wall-clock built_at + VACUUM-normalized layout means the page/content
+    // body is reproducible. The only bytes that can still differ are SQLite's
+    // internal bookkeeping counters in the 100-byte file header (change counter,
+    // schema cookie, version-valid-for) — a handful of bytes, not content churn.
+    expect(second.length).toBe(first.length);
+    const diffs: number[] = [];
+    for (let i = 0; i < first.length; i += 1) {
+      if (first[i] !== second[i]) diffs.push(i);
+    }
+    expect(diffs.length).toBeLessThanOrEqual(8);
+    expect(diffs.every((i) => i < 100)).toBe(true);
+  });
+
+  it('is portable: a DB built in one checkout queries correctly from another path', async () => {
+    const { cp, mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+
+    // Build the index in repo A (simulating the dev who commits the shared DB).
+    await buildIndex(cwd);
+
+    // "Clone": copy the whole .substrata tree to a different absolute path (repo B).
+    const repoB = await mkdtemp(join(tmpdir(), 'substrata-clone-'));
+    try {
+      await cp(join(cwd, '.substrata'), join(repoB, '.substrata'), { recursive: true });
+
+      // The committed DB must be fresh + queryable in B without a rebuild, and the
+      // stored paths must be repo-relative (no leakage of repo A's absolute path).
+      expect(await getIndexStatus(repoB)).toEqual({ state: 'fresh' });
+      const results = await search('learner search', { cwd: repoB });
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((r) => !r.filePath.startsWith('/'))).toBe(true);
+      expect(results.every((r) => !r.filePath.includes(cwd))).toBe(true);
+    } finally {
+      await rm(repoB, { recursive: true, force: true });
+    }
   });
 });

@@ -1,10 +1,17 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { listFootprints, listMemoryDocuments, loadConfig, substrataDir } from '@substrata/core';
+import {
+  graphPath,
+  indexPath,
+  listFootprints,
+  listMemoryDocuments,
+  loadConfig,
+  substrataDir,
+} from '@substrata/core';
 import { gitignoreLinesFor } from '@substrata/editor-integrations';
 import { claudeHooksInstalled } from '@substrata/hooks';
-import { getIndexStatus, readStats } from '@substrata/index';
+import { getGraphStatus, getIndexStatus, readStats } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, resolveCwd } from '../util';
@@ -13,6 +20,45 @@ import { out, resolveCwd } from '../util';
 const RECENT_ACTIVITY_DAYS = 14;
 /** Warn when reads per write fall below this — memory is written but not read. */
 const MIN_READ_WRITE_RATIO = 1;
+/** Warn when the committed shared DB grows past this (bytes) — git history bloat. */
+const SHARED_DB_WARN_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Shared-mode health: the committed index/graph DB is what teammates consume, so
+ * a stale DB (markdown changed but the DB wasn't rebuilt+committed) or an
+ * oversized DB (git history bloat) is worth a non-fatal warning. Advisory only.
+ */
+async function reportSharedDbHealth(cwd: string): Promise<void> {
+  const [fts, graph] = await Promise.all([getIndexStatus(cwd), getGraphStatus(cwd)]);
+  const stale = [
+    fts.state === 'stale' || fts.state === 'missing' ? 'FTS' : null,
+    graph.state === 'stale' || graph.state === 'missing' ? 'graph' : null,
+  ].filter(Boolean);
+  if (stale.length > 0) {
+    out.warn(
+      `shared ${stale.join(' + ')} index is out of date with the committed markdown — teammates would get stale memory.`,
+    );
+    out.plain('    Rebuild and commit: `substrata index` then `git add .substrata/index`.');
+  } else {
+    out.ok('shared index DB is in sync with the committed markdown');
+  }
+
+  let bytes = 0;
+  for (const p of [indexPath(cwd), graphPath(cwd)]) {
+    try {
+      bytes += statSync(p).size;
+    } catch {
+      // missing file already covered by the staleness check above.
+    }
+  }
+  if (bytes > SHARED_DB_WARN_BYTES) {
+    const mb = (bytes / (1024 * 1024)).toFixed(0);
+    out.warn(
+      `committed index DB is large (${mb} MB) — every change adds a full binary blob to git history.`,
+    );
+    out.plain('    Consider `storage.sharing: local` if history size becomes a concern.');
+  }
+}
 
 /**
  * `substrata doctor` — health check (plan §8.8). A missing/stale index is
@@ -87,6 +133,13 @@ export async function runDoctor(cwd: string): Promise<number> {
       `gitignore would commit the generated DB — add: ${gitignoreLinesFor('local').join(', ')}`,
     );
     failures += 1;
+  }
+
+  // Shared mode only: the committed DB is what the team consumes, so warn (loudly,
+  // but non-fatally) if it has drifted from the markdown, or grown large enough to
+  // bloat git history.
+  if (sharing === 'shared') {
+    await reportSharedDbHealth(cwd);
   }
 
   // footprints parse

@@ -172,11 +172,20 @@ substrata init --sharing local     # keep it private + gitignored (default)
 Design notes:
 
 - **Markdown stays the source of truth.** The committed DB is purely a performance
-  optimization — on a merge conflict you just rebuild: `substrata index` (FTS) +
-  `substrata graph build`. A `.gitattributes` entry marks the DBs binary.
+  optimization. `init`/`upgrade` register a git **merge driver** (`substrata-rebuild`,
+  via `.gitattributes`) so a conflicting `.sqlite` is **resolved automatically** by
+  rebuilding from the merged markdown — no manual step. (If the driver isn't
+  registered, resolve by hand with `substrata index`.)
+- **No rebuild on clone.** Freshness is content-based, not mtime-based, so a
+  committed DB is recognized as fresh after a clone/pull (where checkout gives every
+  file a new mtime) and is used as-is — instant, no rebuild.
+- **Low churn.** The build is content-deterministic (no wall-clock timestamps,
+  VACUUM-normalized), so rebuilding unchanged content produces a near-identical file.
 - **Privacy is preserved in both modes.** The telemetry access log lives under
   `.substrata/local/` and is **always** gitignored, so query text is never
   committed even when the index DB is shared. Nothing is ever transmitted.
+- **`substrata doctor`** warns (in shared mode) if the committed DB has drifted from
+  the markdown or grown large enough to bloat git history.
 
 To make the install→use flow seamless for teammates who don't have Substrata
 installed globally, `init` also adds `substrata-cli` to your project's

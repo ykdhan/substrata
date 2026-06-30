@@ -6,7 +6,7 @@ import type { Command } from 'commander';
 
 import { printResolvedConfig, runInitWizard, type InitFlags } from '../wizard/init-wizard';
 import { setAssumeYes } from '../wizard/prompts';
-import { out, resolveCwd } from '../util';
+import { CliError, out, resolveCwd } from '../util';
 
 import { runDoctor } from './doctor';
 
@@ -81,6 +81,10 @@ export function registerInitCommand(program: Command): void {
         cliDep: opts.cliDep,
         printConfig: opts.printConfig,
       };
+
+      if (flags.sharing !== undefined && flags.sharing !== 'local' && flags.sharing !== 'shared') {
+        throw new CliError(`Invalid --sharing "${flags.sharing}". Use "local" or "shared".`);
+      }
 
       if (flags.printConfig) {
         printResolvedConfig(cwd, flags);

@@ -10,6 +10,7 @@ import { registerGraphCommand } from './commands/graph';
 import { registerHookCommand } from './commands/hook';
 import { registerIndexCommand } from './commands/index';
 import { registerInitCommand } from './commands/init';
+import { registerInternalMergeDbCommand } from './commands/internal-merge-db';
 import { registerListCommand } from './commands/list';
 import { registerMcpCommand } from './commands/mcp';
 import { registerMemoryUpdateCommand } from './commands/memory-update';
@@ -60,6 +61,7 @@ export function buildProgram(): Command {
   registerHookCommand(program);
   registerUpgradeCommand(program);
   registerMcpCommand(program);
+  registerInternalMergeDbCommand(program);
 
   return program;
 }

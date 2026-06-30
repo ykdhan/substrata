@@ -68,8 +68,15 @@ describe('upgrade', () => {
     expect(lines).toContain('.substrata/local/');
     // .gitattributes is (re)asserted in shared mode.
     expect(readFileSync(path.join(cwd, '.gitattributes'), 'utf8')).toContain(
-      '.substrata/index/*.sqlite binary',
+      '.substrata/index/*.sqlite merge=substrata-rebuild binary',
     );
+    // The merge driver is registered in the repo's git config.
+    const { execFileSync } = await import('node:child_process');
+    const driver = execFileSync('git', ['config', 'merge.substrata-rebuild.driver'], {
+      cwd,
+      encoding: 'utf8',
+    }).trim();
+    expect(driver).toContain('internal-merge-db');
   });
 
   it('does not add an AGENTS.md section where none exists', async () => {

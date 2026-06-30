@@ -3,6 +3,9 @@ import { stat } from 'node:fs/promises';
 import { listFootprints, listMemoryDocuments } from '@substrata/core';
 import type Database from 'better-sqlite3';
 
+import { sourceContentHash } from '../freshness';
+import { latestSourceTimestamp } from '../indexer';
+
 import { extractGraph, type GraphEdge, type GraphNode } from './extract';
 import { getGraphStatus } from './freshness';
 import { applyGraphSchema, dropGraphSchema, GRAPH_SCHEMA_VERSION } from './schema';
@@ -56,16 +59,22 @@ function writeEdges(db: Database.Database, edges: GraphEdge[]): void {
 
 function writeGraphMeta(
   db: Database.Database,
-  meta: { sourceMaxMtime: number; sourceFileCount: number },
+  meta: {
+    sourceMaxMtime: number;
+    sourceFileCount: number;
+    sourceContentHash: string;
+    builtAt: string;
+  },
 ): void {
   const upsert = db.prepare(
     `INSERT INTO graph_meta (key, value) VALUES (@key, @value)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
   upsert.run({ key: 'schema_version', value: String(GRAPH_SCHEMA_VERSION) });
-  upsert.run({ key: 'built_at', value: new Date().toISOString() });
+  upsert.run({ key: 'built_at', value: meta.builtAt });
   upsert.run({ key: 'source_max_mtime', value: String(meta.sourceMaxMtime) });
   upsert.run({ key: 'source_file_count', value: String(meta.sourceFileCount) });
+  upsert.run({ key: 'source_content_hash', value: meta.sourceContentHash });
 }
 
 /**
@@ -82,6 +91,17 @@ export async function buildGraph(cwd: string): Promise<void> {
     ...memory.map((doc) => doc.filePath),
   ];
   const sourceMaxMtime = await maxMtimeMs(sourceFiles);
+  const contentHash = await sourceContentHash(cwd);
+  const builtAt = latestSourceTimestamp([
+    ...footprints.map((fp) => ({
+      createdAt: fp.frontmatter.created_at,
+      updatedAt: fp.frontmatter.updated_at ?? null,
+    })),
+    ...memory.map((doc) => ({
+      createdAt: null,
+      updatedAt: typeof doc.frontmatter.updated_at === 'string' ? doc.frontmatter.updated_at : null,
+    })),
+  ]);
 
   const db = openGraphDb(cwd);
   try {
@@ -90,9 +110,15 @@ export async function buildGraph(cwd: string): Promise<void> {
       applyGraphSchema(db);
       writeNodes(db, nodes);
       writeEdges(db, edges);
-      writeGraphMeta(db, { sourceMaxMtime, sourceFileCount: sourceFiles.length });
+      writeGraphMeta(db, {
+        sourceMaxMtime,
+        sourceFileCount: sourceFiles.length,
+        sourceContentHash: contentHash,
+        builtAt,
+      });
     });
     rebuild();
+    db.exec('VACUUM');
   } finally {
     closeGraphDb(db);
   }

@@ -165,12 +165,16 @@ describe('buildGraph + getGraphStatus', () => {
     expect(existsSync(graphPath(cwd))).toBe(true);
     expect((await getGraphStatus(cwd)).state).toBe('fresh');
 
-    // Touch a source footprint into the future → stale by mtime.
+    // A mtime-only touch (clone/checkout) stays fresh via the content-hash fallback.
     const footprints = await listFootprints(cwd);
     const future = new Date(Date.now() + 60_000);
     await utimes(footprints[0]!.filePath, future, future);
-    const status = await getGraphStatus(cwd);
-    expect(status.state).toBe('stale');
+    expect((await getGraphStatus(cwd)).state).toBe('fresh');
+
+    // A real content change makes it stale.
+    const { appendFile } = await import('node:fs/promises');
+    await appendFile(footprints[0]!.filePath, '\n\nNew decision text.\n', 'utf8');
+    expect((await getGraphStatus(cwd)).state).toBe('stale');
   });
 
   it('graph DB lives beside the FTS index under the gitignored index/ dir', () => {

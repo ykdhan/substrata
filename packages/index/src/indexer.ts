@@ -9,6 +9,7 @@ import {
 } from '@substrata/core';
 import type Database from 'better-sqlite3';
 
+import { sourceContentHash } from './freshness';
 import { applySchema, dropSchema, SCHEMA_VERSION } from './schema';
 import { closeDb, openIndexDb } from './sqlite';
 
@@ -149,18 +150,41 @@ function writeRows(db: Database.Database, rows: DocumentRow[]): void {
   }
 }
 
+/**
+ * Deterministic "built at" derived from the latest source timestamp (not the
+ * wall clock), so rebuilding identical content produces identical metadata. A
+ * wall-clock value would change every build and churn the committed (shared) DB.
+ */
+export function latestSourceTimestamp(
+  rows: Array<{ createdAt: string | null; updatedAt: string | null }>,
+): string {
+  let max = '';
+  for (const r of rows) {
+    for (const t of [r.updatedAt, r.createdAt]) {
+      if (t && t > max) max = t;
+    }
+  }
+  return max || '1970-01-01T00:00:00.000Z';
+}
+
 function writeMeta(
   db: Database.Database,
-  meta: { sourceMaxMtime: number; sourceFileCount: number },
+  meta: {
+    sourceMaxMtime: number;
+    sourceFileCount: number;
+    sourceContentHash: string;
+    builtAt: string;
+  },
 ): void {
   const upsert = db.prepare(
     `INSERT INTO index_meta (key, value) VALUES (@key, @value)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
   upsert.run({ key: 'schema_version', value: String(SCHEMA_VERSION) });
-  upsert.run({ key: 'built_at', value: new Date().toISOString() });
+  upsert.run({ key: 'built_at', value: meta.builtAt });
   upsert.run({ key: 'source_max_mtime', value: String(meta.sourceMaxMtime) });
   upsert.run({ key: 'source_file_count', value: String(meta.sourceFileCount) });
+  upsert.run({ key: 'source_content_hash', value: meta.sourceContentHash });
 }
 
 /**
@@ -182,6 +206,8 @@ export async function buildIndex(cwd: string, _options: BuildIndexOptions = {}):
     ...memory.map((doc) => doc.filePath),
   ];
   const sourceMaxMtime = await maxMtimeMs(sourceFiles);
+  const contentHash = await sourceContentHash(cwd);
+  const builtAt = latestSourceTimestamp(rows);
 
   const db = openIndexDb(cwd);
   try {
@@ -191,9 +217,17 @@ export async function buildIndex(cwd: string, _options: BuildIndexOptions = {}):
       dropSchema(db);
       applySchema(db);
       writeRows(db, rows);
-      writeMeta(db, { sourceMaxMtime, sourceFileCount: sourceFiles.length });
+      writeMeta(db, {
+        sourceMaxMtime,
+        sourceFileCount: sourceFiles.length,
+        sourceContentHash: contentHash,
+        builtAt,
+      });
     });
     rebuild();
+    // VACUUM (outside the transaction) compacts to a normalized page layout so
+    // identical content yields a near-identical file — less churn in shared mode.
+    db.exec('VACUUM');
   } finally {
     closeDb(db);
   }

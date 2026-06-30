@@ -6,10 +6,11 @@ import { isSymlink } from './symlink';
 
 /**
  * In `shared` storage mode the index/graph SQLite DB is committed so a team
- * shares one prebuilt index. Mark those files as binary in `.gitattributes` so
- * Git never tries to line-diff or merge them. The markdown footprints/memory
- * remain the source of truth, so the documented conflict resolution is simply to
- * rebuild: `substrata index` (FTS) + `substrata graph build`.
+ * shares one prebuilt index. Mark those files as `binary` (never line-diff) and
+ * route them through the `substrata-rebuild` merge driver so a conflict is
+ * resolved AUTOMATICALLY by rebuilding from the committed markdown (the source of
+ * truth) instead of forcing a manual fix. The driver is registered in the repo's
+ * git config by `substrata init`/`upgrade` (see configureMergeDriver).
  *
  * Idempotent + dry-runnable; only the guarded block is ever touched.
  */
@@ -18,9 +19,10 @@ const GUARD_BEGIN = '# >>> substrata >>>';
 const GUARD_END = '# <<< substrata <<<';
 
 const MANAGED_BLOCK = `${GUARD_BEGIN}
-# Shared Substrata index DBs are binary; on conflict, rebuild from the committed
-# markdown (source of truth): \`substrata index\` + \`substrata graph build\`.
-.substrata/index/*.sqlite binary
+# Shared Substrata index DBs are binary + derived from the committed markdown.
+# The substrata-rebuild merge driver auto-resolves conflicts by rebuilding;
+# if it is not registered, resolve manually: \`substrata index\` (FTS + graph).
+.substrata/index/*.sqlite merge=substrata-rebuild binary
 ${GUARD_END}`;
 
 function readIfExists(filePath: string): string | null {

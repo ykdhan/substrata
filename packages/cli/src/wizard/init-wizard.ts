@@ -23,6 +23,8 @@ import { installClaudeHooks } from '@substrata/hooks';
 import pc from 'picocolors';
 import { parseDocument, type Document } from 'yaml';
 
+import { configureMergeDriver } from '../merge-driver';
+
 import pkg from '../../package.json';
 
 import {
@@ -368,6 +370,8 @@ async function applyPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 
   if (answers.sharing === 'shared') {
     applied.push(ensureGitattributes(cwd, false));
+    // Register the local git merge driver so committed-DB conflicts auto-rebuild.
+    await configureMergeDriver(cwd);
   }
 
   if (answers.addCliDep) {

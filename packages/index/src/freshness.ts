@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { footprintsDir, memoryDir, type IndexStatus } from '@substrata/core';
+import { footprintsDir, memoryDir, relativeToCwd, type IndexStatus } from '@substrata/core';
 
 import { SCHEMA_VERSION } from './schema';
 import { closeDb, indexDbExists, openIndexDb } from './sqlite';
@@ -60,6 +61,49 @@ export async function sourceStats(cwd: string): Promise<{ count: number; maxMtim
   return { count: fp.count + mem.count, maxMtime: Math.max(fp.maxMtime, mem.maxMtime) };
 }
 
+/** Recursively collect absolute paths of every `.md` file under `dir`. */
+async function walkMdFiles(dir: string): Promise<string[]> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...(await walkMdFiles(full)));
+    else if (entry.isFile() && entry.name.endsWith('.md')) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * Content signature of all source `.md` files (sorted by repo-relative path),
+ * independent of filesystem mtimes. This is what lets a committed (shared) index
+ * be recognized as fresh after a clone/pull, where checkout gives every file a
+ * brand-new mtime even though the content is unchanged. Reads file bytes, so it
+ * is only computed on the slow path (when the cheap mtime check says "stale").
+ */
+export async function sourceContentHash(cwd: string): Promise<string> {
+  const files = [...(await walkMdFiles(footprintsDir(cwd))), ...(await walkMdFiles(memoryDir(cwd)))]
+    .map((abs) => ({ abs, rel: relativeToCwd(cwd, abs) }))
+    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+
+  const h = createHash('sha1');
+  for (const { abs, rel } of files) {
+    h.update(rel);
+    h.update('\0');
+    try {
+      h.update(await readFile(abs, 'utf8'));
+    } catch {
+      // unreadable file: fold its absence into the hash deterministically.
+    }
+    h.update('\0');
+  }
+  return h.digest('hex');
+}
+
 /**
  * Pure freshness comparison shared by the FTS and graph indexes: given the
  * recorded `meta` map, the current schema version, and a fresh source stat
@@ -90,6 +134,30 @@ export function evaluateMetaFreshness(
 }
 
 /**
+ * Freshness with a content-hash fallback shared by the FTS and graph indexes.
+ * Runs the cheap mtime/count/schema comparison first; only when that reports
+ * `stale/mtime` (the common false positive right after a clone, where checkout
+ * bumps every file's mtime) does it pay to read the sources and compare a
+ * content hash. If the content is byte-identical to what was indexed, the index
+ * is genuinely fresh — so a committed (shared) DB is usable on clone with no
+ * rebuild. A real content change leaves the hash mismatched and stays stale.
+ */
+export async function resolveFreshness(
+  meta: Map<string, string>,
+  schemaVersion: number,
+  cwd: string,
+): Promise<IndexStatus> {
+  const status = evaluateMetaFreshness(meta, schemaVersion, await sourceStats(cwd));
+  if (status.state !== 'stale' || status.reason !== 'mtime') return status;
+
+  const recordedHash = meta.get('source_content_hash');
+  if (recordedHash && (await sourceContentHash(cwd)) === recordedHash) {
+    return { state: 'fresh' };
+  }
+  return status;
+}
+
+/**
  * Report whether the on-disk index is missing, stale, or fresh for `cwd`.
  *
  * - missing: no index DB file on disk.
@@ -113,5 +181,5 @@ export async function getIndexStatus(cwd: string): Promise<IndexStatus> {
     return { state: 'missing' };
   }
 
-  return evaluateMetaFreshness(meta, SCHEMA_VERSION, await sourceStats(cwd));
+  return resolveFreshness(meta, SCHEMA_VERSION, cwd);
 }

@@ -1,6 +1,6 @@
 import type { IndexStatus } from '@substrata/core';
 
-import { evaluateMetaFreshness, sourceStats } from '../freshness';
+import { resolveFreshness } from '../freshness';
 
 import { GRAPH_SCHEMA_VERSION } from './schema';
 import { closeGraphDb, graphDbExists, openGraphDb } from './sqlite';
@@ -42,5 +42,5 @@ export async function getGraphStatus(cwd: string): Promise<IndexStatus> {
     return { state: 'missing' };
   }
 
-  return evaluateMetaFreshness(meta, GRAPH_SCHEMA_VERSION, await sourceStats(cwd));
+  return resolveFreshness(meta, GRAPH_SCHEMA_VERSION, cwd);
 }

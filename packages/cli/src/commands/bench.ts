@@ -1,8 +1,10 @@
 import { listFootprints } from '@substrata/core';
-import { buildGraph, buildIndex, runBenchmark, type BenchmarkResult } from '@substrata/index';
+import { runBenchmark, type BenchmarkResult } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, requireConfig, resolveCwd } from '../util';
+
+import { ensureFreshIndex } from './auto-index';
 
 /**
  * `substrata bench` — quantify what the index buys over the naive no-index path
@@ -73,9 +75,11 @@ export function registerBenchCommand(program: Command): void {
       const cwd = resolveCwd(command.parent?.opts());
       const config = await requireConfig(cwd);
 
-      // Make the comparison fair: ensure the index is built before timing it.
-      await buildIndex(cwd, { rebuild: true });
-      if (config.graph.enabled && opts.graph !== false) await buildGraph(cwd);
+      // Ensure the index is present/fresh before timing it, but DON'T force a
+      // rebuild: in shared mode an unconditional rebuild would dirty the committed
+      // DB in the working tree. ensureFreshIndex builds only when missing/stale;
+      // the graph is auto-(re)built by hybridSearch's fail-open path as needed.
+      await ensureFreshIndex(cwd, true);
 
       const resolvedQueries = queries.length > 0 ? queries : await defaultQueries(cwd);
       const result = await runBenchmark(cwd, {

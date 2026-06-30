@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -14,6 +14,7 @@ import {
 import { buildGraph, buildIndex } from '@substrata/index';
 import type { Command } from 'commander';
 
+import { configureMergeDriver } from '../merge-driver';
 import { codexClient } from '../mcp-clients/codex';
 import { mergeMcpJson } from '../mcp-clients/json-config';
 import { SUBSTRATA_MCP_SPEC } from '../mcp-clients/registry';
@@ -63,11 +64,29 @@ export function registerUpgradeCommand(program: Command): void {
       }
       const config = await requireConfig(cwd);
 
+      // Migrate the pre-0.3 telemetry log: it used to live under .substrata/index/
+      // (which is committable in shared mode). It now lives in .substrata/local/,
+      // so remove the orphaned old file + its sidecars best-effort.
+      const legacyAccess = path.join(substrataDir(cwd), 'index', 'access.sqlite');
+      if (existsSync(legacyAccess)) {
+        for (const suffix of ['', '-journal', '-wal', '-shm']) {
+          try {
+            rmSync(`${legacyAccess}${suffix}`);
+          } catch {
+            // best-effort
+          }
+        }
+        out.info(
+          'Removed legacy telemetry log (.substrata/index/access.sqlite → now .substrata/local/).',
+        );
+      }
+
       // Honor the configured sharing mode so upgrading a shared repo keeps the
       // committed DB shareable instead of resetting .gitignore to local mode.
       report(ensureGitignore(cwd, false, { sharing: config.storage.sharing }), '.gitignore');
       if (config.storage.sharing === 'shared') {
         report(ensureGitattributes(cwd), '.gitattributes');
+        await configureMergeDriver(cwd);
       }
 
       // Refresh the AGENTS.md section only where init previously wrote it.

@@ -122,7 +122,7 @@ describe('init index sharing modes', () => {
     // The committed DB exists and is marked binary.
     expect(existsSync(path.join(cwd, '.substrata', 'index', 'footprint.sqlite'))).toBe(true);
     const attrs = readFileSync(path.join(cwd, '.gitattributes'), 'utf8');
-    expect(attrs).toContain('.substrata/index/*.sqlite binary');
+    expect(attrs).toContain('.substrata/index/*.sqlite merge=substrata-rebuild binary');
   });
 
   it('re-running with --sharing shared flips an existing local config', async () => {

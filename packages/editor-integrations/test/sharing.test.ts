@@ -78,7 +78,7 @@ describe('ensureGitattributes', () => {
     const first = ensureGitattributes(cwd, false);
     expect(first.action).toBe('create');
     const c = readFileSync(path.join(cwd, '.gitattributes'), 'utf8');
-    expect(c).toContain('.substrata/index/*.sqlite binary');
+    expect(c).toContain('.substrata/index/*.sqlite merge=substrata-rebuild binary');
 
     const second = ensureGitattributes(cwd, false);
     expect(second.action).toBe('skip');
@@ -89,7 +89,7 @@ describe('ensureGitattributes', () => {
     ensureGitattributes(cwd, false);
     const c = readFileSync(path.join(cwd, '.gitattributes'), 'utf8');
     expect(c).toContain('*.png binary');
-    expect(c).toContain('.substrata/index/*.sqlite binary');
+    expect(c).toContain('.substrata/index/*.sqlite merge=substrata-rebuild binary');
   });
 });
 
