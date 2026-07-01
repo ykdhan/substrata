@@ -45,7 +45,7 @@ All checks must pass before pushing.
 packages/
   core/                  # Pure domain: file model, parsing, redaction, config, IDs, supersede
   index/                 # SQLite FTS + 🕸️ graph index (src/graph/*): extraction, hybrid retrieval, ranking, bench
-  editor-integrations/   # Setup writers: .gitignore, .gitattributes, shell rc, AGENTS.md, editor rules, secret hook, cli devDep
+  editor-integrations/   # Setup writers: .gitignore, .gitattributes, shell rc, AGENTS.md, editor rules, secret hook, cli devDep, auto-rebuild git hooks
   hooks/                 # Claude Code lifecycle hook primitives (stdin/stdout protocol + settings installer)
   cli/                   # Commands, wizard, MCP client registry (claude/cursor/windsurf/codex/gemini)
   mcp-server/            # MCP server and tools (5 core + 4 graph)

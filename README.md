@@ -35,6 +35,21 @@ The second agent avoids repeating context discovery and past mistakes
 
 Substrata is **not** a replacement for Git commits, PR descriptions, ADRs, or documentation. It is an **agent-native memory system** optimized for coding agents that need project context before making changes.
 
+## 🧠 Why Substrata — not just a markdown file the agent writes itself?
+
+Agents already scribble notes into `CLAUDE.md`, `.cursorrules`, or a scratch file. That "self-managed memory" hits a wall fast. Substrata is the **system** around the markdown, not just the markdown:
+
+| Self-written markdown                                                                                         | Substrata                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Siloed** — lives in one agent/session/developer; ChatGPT-style memory is hosted + per-account.              | **Shared team asset** — committed to the repo, versioned, and consumed by _every_ editor/agent (Claude Code, Cursor, Gemini, Codex) via MCP.                                                |
+| **Read-all** — the whole file is loaded into context; it doesn't scale and eventually gets ignored.           | **Retrieve-only-relevant** — FTS + a graph index surface just the memory that matters for the current task, within a token budget. Scales as memory grows.                                  |
+| **Flat prose** — no notion of "this replaced that", "these touch the same file", "this was rejected and why". | **Relational (graph)** — supersedes chains + shared-file/decision/concept bridges surface the _current, connected_ memory, not stale text.                                                  |
+| **Rots** — contradictory entries pile up; nothing marks things superseded or prunes.                          | **Evolves** — `supersede`, `gc`, and `status` (draft/completed/superseded/deprecated) keep memory current.                                                                                  |
+| **Ad-hoc** — the agent rarely writes good notes, and rarely reads them before acting.                         | **Deterministic loop** — Claude Code hooks inject relevant context on every prompt and remind the agent to record after non-trivial work. Memory is _actually_ read + written each session. |
+| **Ungoverned** — secrets leak, files sprawl, nothing is reviewable.                                           | **Governed** — secret redaction/scan, a pre-commit hook, PR-reviewable structured footprints, and a strict local-only guarantee (nothing is transmitted).                                   |
+
+**Honest scope:** Substrata does not fix _what_ gets written — quality still depends on the agent (garbage in, garbage out), and for a tiny project a single `CLAUDE.md` is fine. Its value grows with the **size of the memory** and the **size of the team**. What it changes is the category: from "a file an agent sometimes reads" to "a shared, indexed, evolving, governed knowledge base that agents reliably use."
+
 ## 🚀 Quick Start
 
 ### Installation and Setup
@@ -154,38 +169,47 @@ no recent footprints, a low read:write ratio), and `substrata gc` reports
 duplicate/stale footprints — `gc --auto-supersede` links older duplicates to the
 newest so retrieval only surfaces the current one.
 
-### Sharing the index with your team (`storage.sharing`)
+### Sharing memory with your team — the ledger model (`storage.sharing`)
 
-`init` asks how the generated index/graph DB should be shared. The choice is
-written to `storage.sharing` in `.substrata/config.yml` and drives `.gitignore`:
+Think of it like Bitcoin: nodes don't ship the "balance database" around — they
+share the **ledger** (transactions) and each node **replays** it to arrive at the
+identical state. Substrata works the same way:
 
-| Mode              | What happens                                                                                                           | Use when                                                 |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `local` (default) | The DB lives in a gitignored path; each developer rebuilds it locally from the committed markdown.                     | You want zero binary churn in Git.                       |
-| `shared`          | The `.sqlite` DB is **committed** to the repo, so teammates get a prebuilt index instantly on clone — no rebuild step. | You want the whole team to share one ready-to-use index. |
+- The **ledger** = the committed markdown footprints/memory (the append-only record).
+- The **index/graph DB** = _derived_ state, a deterministic function of that ledger.
+
+So you don't need to ship the DB at all: everyone re-derives the **identical** index
+from the same markdown (the build is deterministic — no wall-clock timestamps,
+`VACUUM`-normalized). Same ledger + same rules ⇒ same graph, for the whole team,
+with **nothing binary in Git history**. This is the recommended default.
+
+| Mode                 | What's committed                    | Clone experience                                                       | Git history                                             |
+| -------------------- | ----------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| `local` (default) ⭐ | Markdown only (the ledger)          | Auto-rebuild hook re-derives the identical index on `pull`/`checkout`. | Grows only with text — bounded, diff-able.              |
+| `shared`             | Markdown **+ the binary `.sqlite`** | Prebuilt index present instantly, zero rebuild.                        | **Grows unbounded** — a full DB blob per change. Niche. |
 
 ```bash
-substrata init --sharing shared    # commit the DB; team shares one prebuilt index
-substrata init --sharing local     # keep it private + gitignored (default)
+substrata init                     # local/ledger mode (recommended)
+substrata init --sharing shared    # also commit the binary snapshot (small, stable corpora only)
 ```
 
-Design notes:
+**How `local` stays seamless (no manual rebuild):** `init` installs `post-merge` +
+`post-checkout` git hooks that run `npx --no-install substrata-cli internal-refresh-index` after a
+pull/checkout. Because freshness is **content-based** (not mtime-based), it only
+rebuilds when the markdown actually changed — an unchanged pull is a no-op, and the
+index is ready before your agent's first query. Skip the hook with `--no-index-hook`.
 
-- **Markdown stays the source of truth.** The committed DB is purely a performance
-  optimization. `init`/`upgrade` register a git **merge driver** (`substrata-rebuild`,
-  via `.gitattributes`) so a conflicting `.sqlite` is **resolved automatically** by
-  rebuilding from the merged markdown — no manual step. (If the driver isn't
-  registered, resolve by hand with `substrata index`.)
-- **No rebuild on clone.** Freshness is content-based, not mtime-based, so a
-  committed DB is recognized as fresh after a clone/pull (where checkout gives every
-  file a new mtime) and is used as-is — instant, no rebuild.
-- **Low churn.** The build is content-deterministic (no wall-clock timestamps,
-  VACUUM-normalized), so rebuilding unchanged content produces a near-identical file.
-- **Privacy is preserved in both modes.** The telemetry access log lives under
-  `.substrata/local/` and is **always** gitignored, so query text is never
-  committed even when the index DB is shared. Nothing is ever transmitted.
-- **`substrata doctor`** warns (in shared mode) if the committed DB has drifted from
-  the markdown or grown large enough to bloat git history.
+**When to use `shared` (binary) instead:** only if your memory corpus is small and
+stable and you want literally zero rebuild on clone. Trade-off: **every change adds
+a full binary blob to Git history**, which grows without bound — think of it as an
+"assumeutxo" snapshot you commit, not a scalable strategy. `init`/`upgrade` register
+a `substrata-rebuild` git **merge driver** so a conflicting `.sqlite` auto-resolves
+by rebuilding from the merged markdown, and `substrata doctor` warns when the
+committed DB drifts from the markdown or grows large enough to bloat history.
+
+**Privacy (both modes):** the telemetry access log lives under `.substrata/local/`
+and is **always** gitignored, so query text is never committed even in `shared`
+mode. Nothing is ever transmitted.
 
 To make the install→use flow seamless for teammates who don't have Substrata
 installed globally, `init` also adds `substrata-cli` to your project's

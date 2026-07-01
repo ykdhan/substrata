@@ -37,7 +37,7 @@ SQLite (via FTS5) is used only for search and ranking. It must always be regener
  search results
 ```
 
-In the default `local` storage mode the `.substrata/index/` DB is **gitignored**: after a clone the index is absent, and `search`/`context` rebuild it lazily on first use. In `shared` mode (`storage.sharing: shared`) the index/graph DB is **committed** so a team shares one prebuilt index; the telemetry access log (`.substrata/local/`) stays gitignored in **both** modes. See the README "Sharing the index with your team" section.
+The index/graph DB is a **deterministic function of the committed markdown** (the "ledger"), so it need not be shared — every checkout re-derives the identical index (Bitcoin model: share the ledger, replay to identical state). In the default `local` mode the DB is **gitignored** and re-derived: `post-merge`/`post-checkout` git hooks run `npx --no-install substrata-cli internal-refresh-index` after a pull/checkout (content-hash freshness ⇒ only rebuilds on real change), so it's ready before the first query, and `search`/`context` also rebuild lazily. In the niche `shared` mode (`storage.sharing: shared`) the binary DB is instead **committed** (a snapshot for zero rebuild on small/stable corpora, at the cost of unbounded Git history). The telemetry access log (`.substrata/local/`) stays gitignored in **both** modes. See the README "Sharing memory with your team — the ledger model" section.
 
 ## Package Responsibilities
 
@@ -74,6 +74,7 @@ Writers that integrate Substrata into the surrounding project/editor environment
 
 - **Editor rules**: `CLAUDE.md` / `GEMINI.md` / `AGENTS.md` marker sections + Cursor `.mdc` rule (shared `SUBSTRATA_RULES_MARKDOWN`)
 - **Project setup**: mode-aware `.gitignore`, `.gitattributes` (binary DB in shared mode), shell-rc attribution env
+- **Auto-rebuild hooks**: `post-merge`/`post-checkout` git hooks that re-derive the index from the committed markdown after a pull/checkout (the ledger model)
 - **Pre-commit secret hook** and the **change-plan** renderer
 - **Dependency injection**: adds `substrata-cli` to the project's `package.json` devDependencies
 

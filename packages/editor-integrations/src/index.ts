@@ -26,4 +26,5 @@ export {
   upsertGeminiMd,
 } from './editor-rules';
 export { installSecretHook } from './hook';
+export { installIndexHook, indexHookInstalled } from './index-hook';
 export { hasEffectiveChanges, renderPlan, summarizePlan } from './plan';

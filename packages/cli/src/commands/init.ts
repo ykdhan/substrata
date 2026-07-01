@@ -57,6 +57,7 @@ export function registerInitCommand(program: Command): void {
       'Index DB sharing: "local" (gitignored, private) or "shared" (committed, team)',
     )
     .option('--no-cli-dep', "Don't add substrata-cli to the project's package.json devDependencies")
+    .option('--no-index-hook', "Don't install the post-merge/post-checkout auto-rebuild git hook")
     .option('--print-config', 'Print resolved config.yml without writing anything')
     .action(async (opts: InitCommandOptions, command: Command) => {
       const cwd = resolveCwd(command.parent?.opts());
@@ -79,6 +80,7 @@ export function registerInitCommand(program: Command): void {
         index: opts.index,
         sharing: opts.sharing,
         cliDep: opts.cliDep,
+        indexHook: opts.indexHook,
         printConfig: opts.printConfig,
       };
 
@@ -146,6 +148,7 @@ type InitCommandOptions = {
   index?: boolean;
   sharing?: string;
   cliDep?: boolean;
+  indexHook?: boolean;
   printConfig?: boolean;
 };
 

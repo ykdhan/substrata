@@ -13,6 +13,7 @@ import {
   ensureCliDependency,
   ensureGitattributes,
   ensureGitignore,
+  installIndexHook,
   installSecretHook,
   upsertAgentsMd,
   upsertEditorRules,
@@ -61,6 +62,7 @@ export type InitFlags = {
   index?: boolean; // --no-index => false
   sharing?: string; // --sharing <local|shared>
   cliDep?: boolean; // --no-cli-dep => false
+  indexHook?: boolean; // --no-index-hook => false
   printConfig?: boolean;
 };
 
@@ -77,6 +79,7 @@ type Answers = {
   writeGitignore: boolean;
   sharing: StorageSharing;
   addCliDep: boolean;
+  installIndexHook: boolean;
   mcpClients: McpClient[];
 };
 
@@ -265,6 +268,7 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
   const writeGitignore = flags.gitignore !== false;
   const sharing = await resolveSharing(cwd, flags);
   const addCliDep = flags.cliDep !== false;
+  const addIndexHook = flags.indexHook !== false && existsSync(path.join(cwd, '.git'));
 
   const mcpClients = await resolveMcpClients(cwd, flags);
 
@@ -294,6 +298,7 @@ async function collectAnswers(cwd: string, flags: InitFlags): Promise<Answers> {
     writeGitignore,
     sharing,
     addCliDep,
+    installIndexHook: addIndexHook,
     mcpClients,
   };
 }
@@ -321,6 +326,10 @@ async function buildPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 
   if (answers.addCliDep) {
     changes.push(ensureCliDependency(cwd, pkg.version, true));
+  }
+
+  if (answers.installIndexHook) {
+    changes.push(...installIndexHook(cwd, true));
   }
 
   if (
@@ -376,6 +385,10 @@ async function applyPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
 
   if (answers.addCliDep) {
     applied.push(ensureCliDependency(cwd, pkg.version, false));
+  }
+
+  if (answers.installIndexHook) {
+    applied.push(...installIndexHook(cwd, false));
   }
 
   if (

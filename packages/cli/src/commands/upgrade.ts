@@ -6,6 +6,8 @@ import { substrataDir, type ChangeResult } from '@substrata/core';
 import {
   ensureGitattributes,
   ensureGitignore,
+  indexHookInstalled,
+  installIndexHook,
   upsertAgentsMd,
   upsertClaudeMd,
   upsertCursorRule,
@@ -87,6 +89,13 @@ export function registerUpgradeCommand(program: Command): void {
       if (config.storage.sharing === 'shared') {
         report(ensureGitattributes(cwd), '.gitattributes');
         await configureMergeDriver(cwd);
+      }
+      // Refresh the auto-rebuild hooks so a pull re-derives the index (ledger
+      // model) — but only where init previously installed them. Like the secret
+      // hook and MCP entries, upgrade never adds an integration the user opted out
+      // of (e.g. `init --no-index-hook`); re-run `init` to add it.
+      if (indexHookInstalled(cwd)) {
+        for (const result of installIndexHook(cwd)) report(result, path.basename(result.path));
       }
 
       // Refresh the AGENTS.md section only where init previously wrote it.

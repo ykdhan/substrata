@@ -79,6 +79,28 @@ describe('upgrade', () => {
     expect(driver).toContain('internal-merge-db');
   });
 
+  it('re-installs the auto-rebuild hook when present, but not when init opted out', async () => {
+    const { existsSync } = await import('node:fs');
+    // Opted out at init → upgrade must not add it (conservative, like the secret hook).
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-index-hook']);
+    await runCommand(cwd, ['upgrade', '--no-index']);
+    expect(existsSync(path.join(cwd, '.git', 'hooks', 'post-merge'))).toBe(false);
+
+    // Present at init → upgrade refreshes it idempotently.
+    const cwd2 = await makeTempRepo();
+    try {
+      await runCommand(cwd2, ['init', '--yes', '--no-mcp', '--no-env']);
+      expect(existsSync(path.join(cwd2, '.git', 'hooks', 'post-merge'))).toBe(true);
+      const result = await runCommand(cwd2, ['upgrade', '--no-index']);
+      expect(result.code).toBe(0);
+      const hook = readFileSync(path.join(cwd2, '.git', 'hooks', 'post-merge'), 'utf8');
+      // Still exactly one managed block (idempotent refresh).
+      expect(hook.split('>>> substrata post-merge >>>').length).toBe(2);
+    } finally {
+      await removeDir(cwd2);
+    }
+  });
+
   it('does not add an AGENTS.md section where none exists', async () => {
     await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-agents-md']);
     const result = await runCommand(cwd, ['upgrade']);

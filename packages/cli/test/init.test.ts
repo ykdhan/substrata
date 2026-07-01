@@ -138,6 +138,22 @@ describe('init index sharing modes', () => {
   });
 });
 
+describe('init auto-rebuild git hook', () => {
+  it('installs post-merge + post-checkout hooks that refresh the index', async () => {
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env']);
+    for (const name of ['post-merge', 'post-checkout']) {
+      const hook = readFileSync(path.join(cwd, '.git', 'hooks', name), 'utf8');
+      expect(hook).toContain('substrata-cli internal-refresh-index');
+    }
+  });
+
+  it('--no-index-hook skips the auto-rebuild hooks', async () => {
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-index-hook']);
+    expect(existsSync(path.join(cwd, '.git', 'hooks', 'post-merge'))).toBe(false);
+    expect(existsSync(path.join(cwd, '.git', 'hooks', 'post-checkout'))).toBe(false);
+  });
+});
+
 describe('init substrata-cli devDependency', () => {
   it('adds substrata-cli to a project package.json devDependencies', async () => {
     writeFileSync(
