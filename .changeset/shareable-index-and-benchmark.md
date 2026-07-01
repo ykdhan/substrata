@@ -21,3 +21,9 @@ Shared-mode hardening so the committed DB is actually pleasant to live with:
 - **Content-deterministic build** — no wall-clock `built_at` + `VACUUM`, so rebuilding unchanged content yields a near-identical file (minimal git churn).
 - **Doctor guards** — shared-mode warnings when the committed DB drifts from the markdown or grows large enough to bloat history.
 - **`substrata bench`** no longer force-rebuilds (won't dirty a committed DB); `--sharing` is validated; `upgrade` migrates the pre-0.3 telemetry log out of `index/`.
+
+Ledger-model sharing (recommended over committing the binary):
+
+- **Share the markdown, re-derive the index** — because the index is a deterministic function of the committed markdown "ledger", the default `local` mode keeps the DB gitignored and re-derives the identical index everywhere (Git history stays bounded/text-only). The `shared` (commit-the-binary) mode is now documented as a niche opt-in with an unbounded-history caveat.
+- **Auto-rebuild git hooks** — `init` installs `post-merge`/`post-checkout` hooks (`--no-index-hook` to skip) that re-derive the index after a pull/checkout, detached + silent, only when content actually changed — so `local` mode feels prebuilt with no manual rebuild.
+- **Docs** — README gains a "Why Substrata (vs an agent writing its own markdown)?" section and a ledger-model sharing explanation.
