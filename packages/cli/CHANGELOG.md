@@ -1,5 +1,14 @@
 # substrata-cli
 
+## 0.3.1
+
+### Patch Changes
+
+- Polish the npm package listing: a clearer, value-forward `description`; a rewritten
+  README (why-vs-self-written-notes, highlights, install); and more discoverability
+  keywords (rag, graph-rag, cursor, gemini, codex, mcp, local-first, …). No code
+  changes.
+
 ## 0.3.0
 
 ### Minor Changes
