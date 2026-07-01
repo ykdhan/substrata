@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { footprintsDir, memoryDir, relativeToCwd, type IndexStatus } from '@substrata/core';
+import { footprintsDir, memoryDir, type IndexStatus } from '@substrata/core';
 
+import { corpusHash, hashSourceFiles, listSourceFiles } from './manifest';
 import { SCHEMA_VERSION } from './schema';
 import { closeDb, indexDbExists, openIndexDb } from './sqlite';
 
@@ -61,47 +61,18 @@ export async function sourceStats(cwd: string): Promise<{ count: number; maxMtim
   return { count: fp.count + mem.count, maxMtime: Math.max(fp.maxMtime, mem.maxMtime) };
 }
 
-/** Recursively collect absolute paths of every `.md` file under `dir`. */
-async function walkMdFiles(dir: string): Promise<string[]> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  const out: string[] = [];
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...(await walkMdFiles(full)));
-    else if (entry.isFile() && entry.name.endsWith('.md')) out.push(full);
-  }
-  return out;
-}
-
 /**
  * Content signature of all source `.md` files (sorted by repo-relative path),
  * independent of filesystem mtimes. This is what lets a committed (shared) index
  * be recognized as fresh after a clone/pull, where checkout gives every file a
  * brand-new mtime even though the content is unchanged. Reads file bytes, so it
  * is only computed on the slow path (when the cheap mtime check says "stale").
+ *
+ * Derived from the same per-file raw-byte hashes the incremental manifest uses,
+ * so a build's recorded corpus hash always matches a later freshness check.
  */
 export async function sourceContentHash(cwd: string): Promise<string> {
-  const files = [...(await walkMdFiles(footprintsDir(cwd))), ...(await walkMdFiles(memoryDir(cwd)))]
-    .map((abs) => ({ abs, rel: relativeToCwd(cwd, abs) }))
-    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
-
-  const h = createHash('sha1');
-  for (const { abs, rel } of files) {
-    h.update(rel);
-    h.update('\0');
-    try {
-      h.update(await readFile(abs, 'utf8'));
-    } catch {
-      // unreadable file: fold its absence into the hash deterministically.
-    }
-    h.update('\0');
-  }
-  return h.digest('hex');
+  return corpusHash(await hashSourceFiles(await listSourceFiles(cwd)));
 }
 
 /**

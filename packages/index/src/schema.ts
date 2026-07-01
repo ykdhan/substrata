@@ -11,7 +11,7 @@ import type Database from 'better-sqlite3';
  */
 
 /** Bump when the schema or indexing semantics change. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const CREATE_DOCUMENTS = `
 CREATE TABLE IF NOT EXISTS documents (
@@ -47,11 +47,24 @@ CREATE TABLE IF NOT EXISTS index_meta (
 );
 `;
 
+/** Per-file manifest for incremental rebuilds (see manifest.ts). */
+const CREATE_SOURCE_FILES = `
+CREATE TABLE IF NOT EXISTS source_files (
+  rel_path TEXT PRIMARY KEY,
+  hash     TEXT NOT NULL,
+  mtime_ms REAL NOT NULL DEFAULT 0,
+  size     INTEGER NOT NULL DEFAULT 0,
+  doc_id   TEXT NOT NULL,
+  doc_type TEXT NOT NULL
+);
+`;
+
 /** Create all tables if they do not already exist. Idempotent. */
 export function applySchema(db: Database.Database): void {
   db.exec(CREATE_DOCUMENTS);
   db.exec(CREATE_DOCUMENTS_FTS);
   db.exec(CREATE_INDEX_META);
+  db.exec(CREATE_SOURCE_FILES);
 }
 
 /** Drop all index tables (used by a full rebuild). */
@@ -59,4 +72,5 @@ export function dropSchema(db: Database.Database): void {
   db.exec('DROP TABLE IF EXISTS documents;');
   db.exec('DROP TABLE IF EXISTS documents_fts;');
   db.exec('DROP TABLE IF EXISTS index_meta;');
+  db.exec('DROP TABLE IF EXISTS source_files;');
 }

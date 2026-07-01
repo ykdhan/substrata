@@ -27,3 +27,9 @@ Ledger-model sharing (recommended over committing the binary):
 - **Share the markdown, re-derive the index** — because the index is a deterministic function of the committed markdown "ledger", the default `local` mode keeps the DB gitignored and re-derives the identical index everywhere (Git history stays bounded/text-only). The `shared` (commit-the-binary) mode is now documented as a niche opt-in with an unbounded-history caveat.
 - **Auto-rebuild git hooks** — `init` installs `post-merge`/`post-checkout` hooks (`--no-index-hook` to skip) that re-derive the index after a pull/checkout, detached + silent, only when content actually changed — so `local` mode feels prebuilt with no manual rebuild.
 - **Docs** — README gains a "Why Substrata (vs an agent writing its own markdown)?" section and a ledger-model sharing explanation.
+
+Incremental indexing + seamless version migration:
+
+- **Incremental FTS + graph index** — a per-file manifest (stat + content hash) means only the footprints that actually changed are re-parsed and re-indexed, so re-derivation scales with the size of the change, not the size of the memory (validated by a fuzz test asserting `incremental == full rebuild` across add/edit/remove/supersede). `substrata index` still forces a full deterministic rebuild.
+- **Automatic data migration** — the index schema is versioned, so an index built by an older CLI is detected as stale and rebuilt transparently; old `config.yml` files keep working via default deep-merge.
+- **Version-drift nudge** — `init`/`upgrade` stamp the CLI version locally; `substrata doctor` warns to run `substrata upgrade` when a newer CLI is installed, so generated setup files (hooks, gitignore, editor rules, MCP regs) never silently drift.

@@ -21,6 +21,9 @@ import { codexClient } from '../mcp-clients/codex';
 import { mergeMcpJson } from '../mcp-clients/json-config';
 import { SUBSTRATA_MCP_SPEC } from '../mcp-clients/registry';
 import { CliError, out, requireConfig, resolveCwd } from '../util';
+import { stampVersion } from '../version-stamp';
+
+import pkg from '../../package.json';
 
 /**
  * `substrata upgrade` — refresh generated artifacts after upgrading the CLI.
@@ -157,6 +160,9 @@ export function registerUpgradeCommand(program: Command): void {
           out.ok('Search index rebuilt.');
         }
       }
+
+      // Record that this project is now refreshed to the running CLI version.
+      stampVersion(cwd, pkg.version);
 
       out.plain('');
       out.ok('Upgrade complete.');

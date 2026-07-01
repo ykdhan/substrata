@@ -6,7 +6,25 @@ import Database from 'better-sqlite3';
 
 import { closeDb } from '../sqlite';
 
-import { applyGraphSchema } from './schema';
+import { applyGraphSchema, dropGraphSchema, GRAPH_SCHEMA_VERSION } from './schema';
+
+/**
+ * On-disk graph schema version, or null when there is no prior schema (fresh
+ * DB). A schema bump (e.g. adding the `owner` column + its index to `edges`)
+ * cannot be retrofitted onto an existing table by `CREATE ... IF NOT EXISTS`, so
+ * an older schema must be dropped before applying the current one — otherwise
+ * `CREATE INDEX ... ON edges(owner)` throws `no such column: owner` on open.
+ */
+function onDiskGraphSchemaVersion(db: Database.Database): number | null {
+  try {
+    const row = db.prepare(`SELECT value FROM graph_meta WHERE key = 'schema_version'`).get() as
+      | { value: string }
+      | undefined;
+    return row ? Number(row.value) : null;
+  } catch {
+    return null; // graph_meta absent → fresh DB
+  }
+}
 
 export type OpenGraphDbOptions = {
   /** Open the existing DB read-only; never create or migrate. */
@@ -33,6 +51,8 @@ export function openGraphDb(cwd: string, options: OpenGraphDbOptions = {}): Data
 
   if (!options.readonly) {
     db.pragma('journal_mode = DELETE');
+    const onDisk = onDiskGraphSchemaVersion(db);
+    if (onDisk !== null && onDisk !== GRAPH_SCHEMA_VERSION) dropGraphSchema(db);
     applyGraphSchema(db);
   }
 

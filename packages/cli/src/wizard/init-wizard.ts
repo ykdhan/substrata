@@ -25,6 +25,7 @@ import pc from 'picocolors';
 import { parseDocument, type Document } from 'yaml';
 
 import { configureMergeDriver } from '../merge-driver';
+import { stampVersion } from '../version-stamp';
 
 import pkg from '../../package.json';
 
@@ -424,6 +425,10 @@ async function applyPlan(cwd: string, answers: Answers): Promise<ChangeResult[]>
       out.info(`${client.label}: ${result.description}`);
     }
   }
+
+  // Record which CLI version set this project up, so `doctor` can nudge the user
+  // to run `substrata upgrade` after a later version bump.
+  stampVersion(cwd, pkg.version);
 
   return applied;
 }

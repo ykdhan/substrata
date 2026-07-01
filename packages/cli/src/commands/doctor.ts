@@ -15,6 +15,9 @@ import { getGraphStatus, getIndexStatus, readStats } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, resolveCwd } from '../util';
+import { isNewer, readStampedVersion } from '../version-stamp';
+
+import pkg from '../../package.json';
 
 /** Footprints older than this (days) count as "no recent activity". */
 const RECENT_ACTIVITY_DAYS = 14;
@@ -158,6 +161,17 @@ export async function runDoctor(cwd: string): Promise<number> {
   } catch (err) {
     out.err(`memory parse error: ${(err as Error).message}`);
     failures += 1;
+  }
+
+  // Version-drift nudge: config + index auto-migrate on use, but setup artifacts
+  // (git hooks, gitignore/attributes, editor rules, MCP regs) are only refreshed
+  // by `substrata upgrade`. Warn when the installed CLI is newer than the one
+  // that last set this project up.
+  const stamped = readStampedVersion(cwd);
+  if (stamped && isNewer(pkg.version, stamped)) {
+    out.warn(
+      `substrata-cli was upgraded (${stamped} → ${pkg.version}) — run \`substrata upgrade\` to refresh hooks, rules, and generated files.`,
+    );
   }
 
   // Health warnings (informational; never affect the exit code). These automate

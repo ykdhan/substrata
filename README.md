@@ -199,6 +199,13 @@ pull/checkout. Because freshness is **content-based** (not mtime-based), it only
 rebuilds when the markdown actually changed — an unchanged pull is a no-op, and the
 index is ready before your agent's first query. Skip the hook with `--no-index-hook`.
 
+**Incremental by default (scales to a large memory).** Re-deriving the index does
+**not** re-read the whole corpus: a per-file manifest (stat + content hash) means
+only the footprints that actually changed are re-parsed and re-indexed, so the cost
+scales with the size of your change, not the size of the memory. Adding one footprint
+to a 300-doc corpus reindexes in a fraction of a full rebuild. `substrata index`
+still does a full deterministic rebuild when you want one.
+
 **When to use `shared` (binary) instead:** only if your memory corpus is small and
 stable and you want literally zero rebuild on clone. Trade-off: **every change adds
 a full binary blob to Git history**, which grows without bound — think of it as an
@@ -398,8 +405,23 @@ substrata mcp print-config --client codex      # print a copy-pasteable config (
                                                # mcpServers JSON for everything else)
 ```
 
-After upgrading the CLI, run `substrata upgrade` once to refresh all of the above
-(agent rules + every MCP registration) and rebuild the indexes.
+### Upgrading the CLI version
+
+When you bump `substrata-cli`, **your data migrates automatically** on next use:
+config gains any new defaults (deep-merged, so old `config.yml` files keep working),
+and an index built by an older schema is detected as stale and rebuilt transparently.
+
+**Generated setup files are not auto-rewritten** on a version bump — the git hooks,
+`.gitignore`/`.gitattributes`, editor rule blocks (`CLAUDE.md`/`GEMINI.md`/Cursor),
+and MCP registrations are only refreshed by `substrata upgrade`. Run it once after
+upgrading:
+
+```bash
+substrata upgrade   # refresh generated files + rebuild the index (idempotent)
+```
+
+`substrata doctor` records which CLI version last set the project up and **warns you
+to run `upgrade`** whenever a newer CLI is detected, so you never silently drift.
 
 ## 🧰 MCP Tools
 

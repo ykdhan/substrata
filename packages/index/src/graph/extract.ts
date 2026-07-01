@@ -347,3 +347,30 @@ export function extractGraph(
   for (const doc of memory) addMemory(b, cwd, doc);
   return b.build();
 }
+
+/**
+ * Extract the nodes + edges contributed by a SINGLE footprint. Used by the
+ * incremental graph builder, which needs each doc's own contribution (so its
+ * edges can be tagged with an `owner` and removed precisely on change/removal).
+ */
+export function extractFootprint(cwd: string, fp: Footprint): GraphData {
+  const b = new GraphBuilder();
+  addFootprint(b, cwd, fp);
+  return b.build();
+}
+
+/** Extract the nodes + edges contributed by a SINGLE memory document. */
+export function extractMemory(cwd: string, doc: MemoryDocument): GraphData {
+  const b = new GraphBuilder();
+  addMemory(b, cwd, doc);
+  return b.build();
+}
+
+/** Bridge node kinds (shared across docs) — cleaned up when orphaned. */
+export const BRIDGE_NODE_KINDS: readonly GraphNodeKind[] = [
+  'file',
+  'tag',
+  'decision',
+  'concept',
+  'actor',
+];

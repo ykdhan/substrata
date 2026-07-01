@@ -1,23 +1,33 @@
-import { stat } from 'node:fs/promises';
-
 import {
   listFootprints,
   listMemoryDocuments,
+  parseFootprintFile,
+  parseMemoryFile,
   relativeToCwd,
   type Footprint,
   type MemoryDocument,
 } from '@substrata/core';
 import type Database from 'better-sqlite3';
 
-import { sourceContentHash } from './freshness';
+import {
+  corpusHash,
+  deleteManifestRow,
+  diffSources,
+  listSourceFiles,
+  readManifest,
+  upsertManifestRow,
+  type DocType,
+  type FileState,
+  type SourceFile,
+} from './manifest';
 import { applySchema, dropSchema, SCHEMA_VERSION } from './schema';
 import { closeDb, openIndexDb } from './sqlite';
 
 export type BuildIndexOptions = {
   /**
-   * Reserved for API symmetry with the plan signature. The MVP performs a full
-   * rebuild on every call (drop & recreate rows), so this flag is a no-op today
-   * but kept so callers can pass it without breaking.
+   * Force a full drop-and-recreate rebuild instead of the incremental delta
+   * path. Used for the canonical deterministic build (e.g. `substrata index`)
+   * and whenever the on-disk schema version doesn't match.
    */
   rebuild?: boolean;
 };
@@ -101,20 +111,14 @@ function memoryToRow(cwd: string, doc: MemoryDocument): DocumentRow {
   };
 }
 
-async function maxMtimeMs(filePaths: string[]): Promise<number> {
+/** Max source mtime, reused from the stats gathered during the diff. */
+function maxMtime(fileStates: Map<string, FileState>): number {
   let max = 0;
-  for (const filePath of filePaths) {
-    try {
-      const st = await stat(filePath);
-      if (st.mtimeMs > max) max = st.mtimeMs;
-    } catch {
-      // file vanished between listing and stat; ignore.
-    }
-  }
+  for (const st of fileStates.values()) if (st.mtimeMs > max) max = st.mtimeMs;
   return max;
 }
 
-function writeRows(db: Database.Database, rows: DocumentRow[]): void {
+function makeInsertRow(db: Database.Database): (row: DocumentRow) => void {
   const insertDoc = db.prepare(
     `INSERT INTO documents
        (id, type, title, file_path, status, created_at, updated_at, tags_json, files_json, raw_text, work_type)
@@ -125,8 +129,7 @@ function writeRows(db: Database.Database, rows: DocumentRow[]): void {
     `INSERT INTO documents_fts (id, title, tags, files, content)
      VALUES (@id, @title, @tags, @files, @content)`,
   );
-
-  for (const row of rows) {
+  return (row: DocumentRow): void => {
     insertDoc.run({
       id: row.id,
       type: row.type,
@@ -147,7 +150,17 @@ function writeRows(db: Database.Database, rows: DocumentRow[]): void {
       files: row.files.join(' '),
       content: row.content,
     });
-  }
+  };
+}
+
+/** Remove a doc's rows from both the structured + FTS tables. */
+function makeDeleteRows(db: Database.Database): (id: string) => void {
+  const delDoc = db.prepare('DELETE FROM documents WHERE id = ?');
+  const delFts = db.prepare('DELETE FROM documents_fts WHERE id = ?');
+  return (id: string): void => {
+    delDoc.run(id);
+    delFts.run(id);
+  };
 }
 
 /**
@@ -165,6 +178,17 @@ export function latestSourceTimestamp(
     }
   }
   return max || '1970-01-01T00:00:00.000Z';
+}
+
+/** Latest source timestamp across every row currently in the index. */
+function builtAtFromDb(db: Database.Database): string {
+  const rows = db
+    .prepare('SELECT created_at AS createdAt, updated_at AS updatedAt FROM documents')
+    .all() as Array<{
+    createdAt: string | null;
+    updatedAt: string | null;
+  }>;
+  return latestSourceTimestamp(rows);
 }
 
 function writeMeta(
@@ -187,47 +211,144 @@ function writeMeta(
   upsert.run({ key: 'source_content_hash', value: meta.sourceContentHash });
 }
 
+function readSchemaVersion(db: Database.Database): number {
+  try {
+    const row = db.prepare(`SELECT value FROM index_meta WHERE key = 'schema_version'`).get() as
+      | { value: string }
+      | undefined;
+    return row ? Number(row.value) : NaN;
+  } catch {
+    return NaN;
+  }
+}
+
+/** Parse one source file into its document row (footprint or memory). */
+async function parseRow(cwd: string, file: SourceFile): Promise<DocumentRow> {
+  if (file.docType === 'footprint') {
+    return footprintToRow(cwd, await parseFootprintFile(file.absPath));
+  }
+  return memoryToRow(cwd, await parseMemoryFile(file.absPath));
+}
+
 /**
- * Build (or fully rebuild) the search index for `cwd`. Loads footprints and
- * memory documents via `@substrata/core`, flattens each into one searchable
- * `documents` + `documents_fts` row, and records freshness metadata. The MVP
- * always does a full rebuild (drop & recreate rows) inside a transaction.
+ * Build (or update) the search index for `cwd`. By default this is INCREMENTAL:
+ * only the source files whose content changed since the last build are re-parsed
+ * and re-indexed (detected via a per-file hash manifest), so the cost scales with
+ * the size of the change, not the size of the corpus. A full drop-and-recreate
+ * rebuild runs when `options.rebuild` is set, when there is no prior manifest, or
+ * when the on-disk schema version differs.
  */
-export async function buildIndex(cwd: string, _options: BuildIndexOptions = {}): Promise<void> {
-  const [footprints, memory] = await Promise.all([listFootprints(cwd), listMemoryDocuments(cwd)]);
-
-  const rows: DocumentRow[] = [
-    ...footprints.map((fp) => footprintToRow(cwd, fp)),
-    ...memory.map((doc) => memoryToRow(cwd, doc)),
-  ];
-
-  const sourceFiles = [
-    ...footprints.map((fp) => fp.filePath),
-    ...memory.map((doc) => doc.filePath),
-  ];
-  const sourceMaxMtime = await maxMtimeMs(sourceFiles);
-  const contentHash = await sourceContentHash(cwd);
-  const builtAt = latestSourceTimestamp(rows);
+export async function buildIndex(cwd: string, options: BuildIndexOptions = {}): Promise<void> {
+  const files = await listSourceFiles(cwd);
 
   const db = openIndexDb(cwd);
   try {
-    const rebuild = db.transaction(() => {
-      // Full rebuild: drop & recreate so a schema bump or removed source files
-      // never leave stale rows behind.
-      dropSchema(db);
-      applySchema(db);
-      writeRows(db, rows);
+    const stored = readManifest(db);
+    const { diff, fileHashes, fileStates } = await diffSources(files, stored);
+    const contentHash = corpusHash(fileHashes);
+    const sourceMaxMtime = maxMtime(fileStates);
+    const manifestOf = (file: SourceFile, docId: string) => {
+      const st = fileStates.get(file.relPath);
+      return {
+        relPath: file.relPath,
+        hash: st?.hash ?? '',
+        mtimeMs: st?.mtimeMs ?? 0,
+        size: st?.size ?? 0,
+        docId,
+        docType: file.docType,
+      };
+    };
+    const incremental =
+      !options.rebuild && stored.size > 0 && readSchemaVersion(db) === SCHEMA_VERSION;
+
+    if (!incremental) {
+      const [footprints, memory] = await Promise.all([
+        listFootprints(cwd),
+        listMemoryDocuments(cwd),
+      ]);
+      const rows = [
+        ...footprints.map((fp) => ({ row: footprintToRow(cwd, fp), type: 'footprint' as DocType })),
+        ...memory.map((doc) => ({ row: memoryToRow(cwd, doc), type: 'memory' as DocType })),
+      ];
+      const rowByPath = new Map(rows.map((r) => [r.row.filePath, r]));
+      const builtAt = latestSourceTimestamp(rows.map((r) => r.row));
+
+      const rebuild = db.transaction(() => {
+        dropSchema(db);
+        applySchema(db);
+        const insert = makeInsertRow(db);
+        for (const { row } of rows) insert(row);
+        for (const file of files) {
+          const entry = rowByPath.get(file.relPath);
+          if (!entry) continue;
+          upsertManifestRow(db, manifestOf(file, entry.row.id));
+        }
+        writeMeta(db, {
+          sourceMaxMtime,
+          sourceFileCount: files.length,
+          sourceContentHash: contentHash,
+          builtAt,
+        });
+      });
+      rebuild();
+      db.exec('VACUUM');
+      return;
+    }
+
+    // --- Incremental path ---
+    if (diff.added.length === 0 && diff.changed.length === 0 && diff.removed.length === 0) {
+      // Content is byte-identical; refresh freshness + manifest stat rows (a
+      // mtime-only touch must not force a read/rebuild next time).
+      const refresh = db.transaction(() => {
+        for (const file of files) {
+          const prev = stored.get(file.relPath);
+          if (prev) upsertManifestRow(db, manifestOf(file, prev.docId));
+        }
+        writeMeta(db, {
+          sourceMaxMtime,
+          sourceFileCount: files.length,
+          sourceContentHash: contentHash,
+          builtAt: builtAtFromDb(db),
+        });
+      });
+      refresh();
+      return;
+    }
+
+    const byPath = new Map(files.map((f) => [f.relPath, f]));
+    const toIndex = [...diff.added, ...diff.changed]
+      .map((rp) => byPath.get(rp))
+      .filter((f): f is SourceFile => Boolean(f));
+    const parsed = await Promise.all(
+      toIndex.map(async (file) => ({ file, row: await parseRow(cwd, file) })),
+    );
+
+    const apply = db.transaction(() => {
+      const del = makeDeleteRows(db);
+      const insert = makeInsertRow(db);
+      // Drop rows for changed docs (by their previous id) and removed docs.
+      for (const rp of diff.changed) {
+        const prev = stored.get(rp);
+        if (prev) del(prev.docId);
+      }
+      for (const { docId, relPath } of diff.removed) {
+        del(docId);
+        deleteManifestRow(db, relPath);
+      }
+      // Insert added + changed docs, refreshing their manifest rows.
+      for (const { file, row } of parsed) {
+        del(row.id); // guard against a stale row under the same id
+        insert(row);
+        upsertManifestRow(db, manifestOf(file, row.id));
+      }
       writeMeta(db, {
         sourceMaxMtime,
-        sourceFileCount: sourceFiles.length,
+        sourceFileCount: files.length,
         sourceContentHash: contentHash,
-        builtAt,
+        builtAt: builtAtFromDb(db),
       });
     });
-    rebuild();
-    // VACUUM (outside the transaction) compacts to a normalized page layout so
-    // identical content yields a near-identical file — less churn in shared mode.
-    db.exec('VACUUM');
+    apply();
   } finally {
     closeDb(db);
   }
