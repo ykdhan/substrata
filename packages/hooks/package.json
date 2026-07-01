@@ -1,6 +1,6 @@
 {
   "name": "@substrata/hooks",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Claude Code lifecycle hook primitives for Substrata: the stdin/stdout protocol adapter and the .claude/settings.json installer",
   "license": "MIT",

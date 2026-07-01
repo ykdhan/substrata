@@ -1,6 +1,6 @@
 {
   "name": "@substrata/editor-integrations",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Editor/project setup writers for Substrata: editor rule blocks, .gitignore, shell env, pre-commit secret hook, and the change-plan renderer",
   "license": "MIT",
