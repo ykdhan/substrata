@@ -56,4 +56,4 @@
 - Updated dependencies
 - Updated dependencies [597fc73]
   - @substrata/core@0.2.0
-  - @substrata/search@0.2.0
+  - @substrata/index@0.2.0

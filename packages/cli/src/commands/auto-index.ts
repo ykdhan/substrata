@@ -1,4 +1,4 @@
-import { buildIndex, getIndexStatus } from '@substrata/search';
+import { buildIndex, getIndexStatus } from '@substrata/index';
 
 import { out } from '../util';
 

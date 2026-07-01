@@ -1,23 +1,67 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import {
-  GITIGNORE_LINES,
-  claudeHooksInstalled,
+  graphPath,
+  indexPath,
   listFootprints,
   listMemoryDocuments,
   loadConfig,
   substrataDir,
 } from '@substrata/core';
-import { getIndexStatus, readStats } from '@substrata/search';
+import { gitignoreLinesFor } from '@substrata/editor-integrations';
+import { claudeHooksInstalled } from '@substrata/hooks';
+import { getGraphStatus, getIndexStatus, readStats } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, resolveCwd } from '../util';
+import { isNewer, readStampedVersion } from '../version-stamp';
+
+import pkg from '../../package.json';
 
 /** Footprints older than this (days) count as "no recent activity". */
 const RECENT_ACTIVITY_DAYS = 14;
 /** Warn when reads per write fall below this — memory is written but not read. */
 const MIN_READ_WRITE_RATIO = 1;
+/** Warn when the committed shared DB grows past this (bytes) — git history bloat. */
+const SHARED_DB_WARN_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Shared-mode health: the committed index/graph DB is what teammates consume, so
+ * a stale DB (markdown changed but the DB wasn't rebuilt+committed) or an
+ * oversized DB (git history bloat) is worth a non-fatal warning. Advisory only.
+ */
+async function reportSharedDbHealth(cwd: string): Promise<void> {
+  const [fts, graph] = await Promise.all([getIndexStatus(cwd), getGraphStatus(cwd)]);
+  const stale = [
+    fts.state === 'stale' || fts.state === 'missing' ? 'FTS' : null,
+    graph.state === 'stale' || graph.state === 'missing' ? 'graph' : null,
+  ].filter(Boolean);
+  if (stale.length > 0) {
+    out.warn(
+      `shared ${stale.join(' + ')} index is out of date with the committed markdown — teammates would get stale memory.`,
+    );
+    out.plain('    Rebuild and commit: `substrata index` then `git add .substrata/index`.');
+  } else {
+    out.ok('shared index DB is in sync with the committed markdown');
+  }
+
+  let bytes = 0;
+  for (const p of [indexPath(cwd), graphPath(cwd)]) {
+    try {
+      bytes += statSync(p).size;
+    } catch {
+      // missing file already covered by the staleness check above.
+    }
+  }
+  if (bytes > SHARED_DB_WARN_BYTES) {
+    const mb = (bytes / (1024 * 1024)).toFixed(0);
+    out.warn(
+      `committed index DB is large (${mb} MB) — every change adds a full binary blob to git history.`,
+    );
+    out.plain('    Consider `storage.sharing: local` if history size becomes a concern.');
+  }
+}
 
 /**
  * `substrata doctor` — health check (plan §8.8). A missing/stale index is
@@ -56,16 +100,49 @@ export async function runDoctor(cwd: string): Promise<number> {
     out.info(`index stale (${status.reason}) — run \`substrata index\``);
   }
 
-  // gitignore covers index/ and cache/ (else the generated DB would be committed)
+  // gitignore must always keep the local telemetry log private; the index DB is
+  // ignored in 'local' mode and intentionally committed in 'shared' mode.
   const gitignorePath = path.join(cwd, '.gitignore');
   const gitignore = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
   const ignoredLines = new Set(gitignore.split(/\r?\n/).map((l) => l.trim()));
-  const indexCovered = ignoredLines.has('.substrata/index/') || ignoredLines.has('.substrata/');
-  if (indexCovered) {
-    out.ok('gitignore covers index/ and cache/');
-  } else {
-    out.err(`gitignore would commit the generated DB — add: ${GITIGNORE_LINES.join(', ')}`);
+  const blanketIgnored = ignoredLines.has('.substrata/') || ignoredLines.has('.substrata/index/');
+
+  let sharing: 'local' | 'shared' = 'local';
+  try {
+    sharing = (await loadConfig(cwd)).storage.sharing;
+  } catch {
+    // fall back to local; a broken config is already reported elsewhere.
+  }
+
+  const telemetryCovered = ignoredLines.has('.substrata/local/') || ignoredLines.has('.substrata/');
+  if (!telemetryCovered) {
+    out.err('gitignore would commit the local telemetry log — add: .substrata/local/');
     failures += 1;
+  }
+
+  if (sharing === 'shared') {
+    if (blanketIgnored) {
+      out.warn(
+        'storage.sharing=shared but .gitignore still ignores .substrata/index/ — the shared DB will NOT be committed.',
+      );
+      out.plain('    Re-run `substrata init` (or `substrata upgrade`) to refresh .gitignore.');
+    } else if (telemetryCovered) {
+      out.ok('gitignore allows the shared index DB to be committed (telemetry stays local)');
+    }
+  } else if (blanketIgnored) {
+    out.ok('gitignore covers index/ and cache/ (local mode)');
+  } else {
+    out.err(
+      `gitignore would commit the generated DB — add: ${gitignoreLinesFor('local').join(', ')}`,
+    );
+    failures += 1;
+  }
+
+  // Shared mode only: the committed DB is what the team consumes, so warn (loudly,
+  // but non-fatally) if it has drifted from the markdown, or grown large enough to
+  // bloat git history.
+  if (sharing === 'shared') {
+    await reportSharedDbHealth(cwd);
   }
 
   // footprints parse
@@ -84,6 +161,17 @@ export async function runDoctor(cwd: string): Promise<number> {
   } catch (err) {
     out.err(`memory parse error: ${(err as Error).message}`);
     failures += 1;
+  }
+
+  // Version-drift nudge: config + index auto-migrate on use, but setup artifacts
+  // (git hooks, gitignore/attributes, editor rules, MCP regs) are only refreshed
+  // by `substrata upgrade`. Warn when the installed CLI is newer than the one
+  // that last set this project up.
+  const stamped = readStampedVersion(cwd);
+  if (stamped && isNewer(pkg.version, stamped)) {
+    out.warn(
+      `substrata-cli was upgraded (${stamped} → ${pkg.version}) — run \`substrata upgrade\` to refresh hooks, rules, and generated files.`,
+    );
   }
 
   // Health warnings (informational; never affect the exit code). These automate

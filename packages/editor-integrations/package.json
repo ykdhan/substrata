@@ -1,0 +1,47 @@
+{
+  "name": "@substrata/editor-integrations",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Editor/project setup writers for Substrata: editor rule blocks, .gitignore, shell env, pre-commit secret hook, and the change-plan renderer",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ykdhan/substrata.git",
+    "directory": "packages/editor-integrations"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "memory",
+    "editor",
+    "claude-code",
+    "cursor",
+    "gemini"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@substrata/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

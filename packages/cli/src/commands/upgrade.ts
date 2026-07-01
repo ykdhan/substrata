@@ -1,23 +1,29 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import { substrataDir, type ChangeResult } from '@substrata/core';
 import {
+  ensureGitattributes,
   ensureGitignore,
-  substrataDir,
+  indexHookInstalled,
+  installIndexHook,
   upsertAgentsMd,
   upsertClaudeMd,
   upsertCursorRule,
   upsertGeminiMd,
-  type ChangeResult,
-} from '@substrata/core';
-import { buildGraph, buildIndex } from '@substrata/search';
+} from '@substrata/editor-integrations';
+import { buildGraph, buildIndex } from '@substrata/index';
 import type { Command } from 'commander';
 
+import { configureMergeDriver } from '../merge-driver';
 import { codexClient } from '../mcp-clients/codex';
 import { mergeMcpJson } from '../mcp-clients/json-config';
 import { SUBSTRATA_MCP_SPEC } from '../mcp-clients/registry';
 import { CliError, out, requireConfig, resolveCwd } from '../util';
+import { stampVersion } from '../version-stamp';
+
+import pkg from '../../package.json';
 
 /**
  * `substrata upgrade` — refresh generated artifacts after upgrading the CLI.
@@ -63,7 +69,37 @@ export function registerUpgradeCommand(program: Command): void {
       }
       const config = await requireConfig(cwd);
 
-      report(ensureGitignore(cwd), '.gitignore');
+      // Migrate the pre-0.3 telemetry log: it used to live under .substrata/index/
+      // (which is committable in shared mode). It now lives in .substrata/local/,
+      // so remove the orphaned old file + its sidecars best-effort.
+      const legacyAccess = path.join(substrataDir(cwd), 'index', 'access.sqlite');
+      if (existsSync(legacyAccess)) {
+        for (const suffix of ['', '-journal', '-wal', '-shm']) {
+          try {
+            rmSync(`${legacyAccess}${suffix}`);
+          } catch {
+            // best-effort
+          }
+        }
+        out.info(
+          'Removed legacy telemetry log (.substrata/index/access.sqlite → now .substrata/local/).',
+        );
+      }
+
+      // Honor the configured sharing mode so upgrading a shared repo keeps the
+      // committed DB shareable instead of resetting .gitignore to local mode.
+      report(ensureGitignore(cwd, false, { sharing: config.storage.sharing }), '.gitignore');
+      if (config.storage.sharing === 'shared') {
+        report(ensureGitattributes(cwd), '.gitattributes');
+        await configureMergeDriver(cwd);
+      }
+      // Refresh the auto-rebuild hooks so a pull re-derives the index (ledger
+      // model) — but only where init previously installed them. Like the secret
+      // hook and MCP entries, upgrade never adds an integration the user opted out
+      // of (e.g. `init --no-index-hook`); re-run `init` to add it.
+      if (indexHookInstalled(cwd)) {
+        for (const result of installIndexHook(cwd)) report(result, path.basename(result.path));
+      }
 
       // Refresh the AGENTS.md section only where init previously wrote it.
       const agentsPath = path.join(cwd, 'AGENTS.md');
@@ -124,6 +160,9 @@ export function registerUpgradeCommand(program: Command): void {
           out.ok('Search index rebuilt.');
         }
       }
+
+      // Record that this project is now refreshed to the running CLI version.
+      stampVersion(cwd, pkg.version);
 
       out.plain('');
       out.ok('Upgrade complete.');

@@ -1,10 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { installClaudeHooks, installSecretHook, loadConfig, scanForSecrets } from '@substrata/core';
+import { loadConfig, scanForSecrets } from '@substrata/core';
+import { installSecretHook } from '@substrata/editor-integrations';
+import {
+  emitContext,
+  emitStopDecision,
+  installClaudeHooks,
+  readHookPayload,
+  runHook,
+} from '@substrata/hooks';
 import type { Command } from 'commander';
 
-import { emitContext, emitStopDecision, readHookPayload, runHook } from '../hooks/claude-code';
 import { buildGraphHookContext, buildHookContext, recentDigest } from '../hooks/context';
 import { collectGitContext, git, out, resolveCwd } from '../util';
 

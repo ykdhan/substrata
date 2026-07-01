@@ -52,6 +52,55 @@ describe('upgrade', () => {
     expect(agents.split('<!-- substrata:start -->').length).toBe(2);
   });
 
+  it('preserves shared mode: does not re-ignore the committed index DB', async () => {
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--sharing', 'shared']);
+
+    const result = await runCommand(cwd, ['upgrade', '--no-index']);
+    expect(result.code).toBe(0);
+
+    const lines = readFileSync(path.join(cwd, '.gitignore'), 'utf8')
+      .split('\n')
+      .map((l) => l.trim());
+    // The committed DB must stay committable after upgrade.
+    expect(lines).not.toContain('.substrata/index/');
+    expect(lines).toContain('.substrata/index/*.sqlite-journal');
+    // Telemetry stays private.
+    expect(lines).toContain('.substrata/local/');
+    // .gitattributes is (re)asserted in shared mode.
+    expect(readFileSync(path.join(cwd, '.gitattributes'), 'utf8')).toContain(
+      '.substrata/index/*.sqlite merge=substrata-rebuild binary',
+    );
+    // The merge driver is registered in the repo's git config.
+    const { execFileSync } = await import('node:child_process');
+    const driver = execFileSync('git', ['config', 'merge.substrata-rebuild.driver'], {
+      cwd,
+      encoding: 'utf8',
+    }).trim();
+    expect(driver).toContain('internal-merge-db');
+  });
+
+  it('re-installs the auto-rebuild hook when present, but not when init opted out', async () => {
+    const { existsSync } = await import('node:fs');
+    // Opted out at init → upgrade must not add it (conservative, like the secret hook).
+    await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-index-hook']);
+    await runCommand(cwd, ['upgrade', '--no-index']);
+    expect(existsSync(path.join(cwd, '.git', 'hooks', 'post-merge'))).toBe(false);
+
+    // Present at init → upgrade refreshes it idempotently.
+    const cwd2 = await makeTempRepo();
+    try {
+      await runCommand(cwd2, ['init', '--yes', '--no-mcp', '--no-env']);
+      expect(existsSync(path.join(cwd2, '.git', 'hooks', 'post-merge'))).toBe(true);
+      const result = await runCommand(cwd2, ['upgrade', '--no-index']);
+      expect(result.code).toBe(0);
+      const hook = readFileSync(path.join(cwd2, '.git', 'hooks', 'post-merge'), 'utf8');
+      // Still exactly one managed block (idempotent refresh).
+      expect(hook.split('>>> substrata post-merge >>>').length).toBe(2);
+    } finally {
+      await removeDir(cwd2);
+    }
+  });
+
   it('does not add an AGENTS.md section where none exists', async () => {
     await runCommand(cwd, ['init', '--yes', '--no-mcp', '--no-env', '--no-agents-md']);
     const result = await runCommand(cwd, ['upgrade']);

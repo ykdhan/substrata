@@ -5,7 +5,7 @@
 // failure can't break a tool call.
 
 import { loadConfig } from '@substrata/core';
-import { logAccess, type AccessEntry } from '@substrata/search';
+import { logAccess, type AccessEntry } from '@substrata/index';
 
 export async function recordRead(cwd: string, entry: AccessEntry): Promise<void> {
   try {

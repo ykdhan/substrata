@@ -1,7 +1,7 @@
 // substrata_context tool logic. See plan §8.4 + §9.
 
 import { loadConfig, type SearchResult } from '@substrata/core';
-import { search } from '@substrata/search';
+import { search } from '@substrata/index';
 import { z } from 'zod';
 
 import { ensureIndexFresh } from './search';

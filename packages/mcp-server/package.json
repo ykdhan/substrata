@@ -39,7 +39,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@substrata/core": "workspace:*",
-    "@substrata/search": "workspace:*",
+    "@substrata/index": "workspace:*",
     "zod": "^3.24.0"
   },
   "devDependencies": {

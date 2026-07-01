@@ -2,7 +2,7 @@
 //
 // Four tools that mirror the `substrata graph …` CLI subcommands so any agent
 // gets the same graph interface over MCP. All of them auto-(re)build the graph
-// on first use and fail open (the underlying @substrata/search graph functions
+// on first use and fail open (the underlying @substrata/index graph functions
 // return empty results rather than throwing on a corrupt/absent graph).
 
 import { listFootprints, listMemoryDocuments, loadConfig } from '@substrata/core';
@@ -16,7 +16,7 @@ import {
   type ExplainResult,
   type GraphRelatedResult,
   type GraphStats,
-} from '@substrata/search';
+} from '@substrata/index';
 import { z } from 'zod';
 
 import { ensureIndexFresh } from './search';

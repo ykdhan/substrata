@@ -46,19 +46,30 @@ export function indexPath(cwd: string): string {
 }
 
 /**
- * Absolute path to the local access-log DB. Lives beside the index (under the
- * gitignored `index/` dir) but is a SEPARATE file so it survives index rebuilds,
- * which drop & recreate every index table.
+ * Absolute path to the always-local directory. Holds machine-local, never-shared
+ * state (e.g. the telemetry access log). Unlike `index/`, this directory is
+ * gitignored in BOTH `local` and `shared` storage modes, so private data such as
+ * query text can never be committed even when the index DB is shared with a team.
  */
-export function accessLogPath(cwd: string): string {
-  return path.join(substrataDir(cwd), 'index', 'access.sqlite');
+export function localDir(cwd: string): string {
+  return path.join(substrataDir(cwd), 'local');
 }
 
 /**
- * Absolute path to the generated SQLite graph index. Like `accessLogPath`, it
- * lives under the gitignored `index/` dir but is a SEPARATE file from the FTS
- * index so a `substrata index` FTS rebuild (which drops & recreates every FTS
- * table) never wipes the graph, and vice-versa.
+ * Absolute path to the local access-log DB. Lives under the always-gitignored
+ * `local/` dir (NOT `index/`) so it is never committed even in shared mode, and
+ * is a SEPARATE file from the index so index rebuilds (which drop & recreate
+ * every index table) never wipe it.
+ */
+export function accessLogPath(cwd: string): string {
+  return path.join(localDir(cwd), 'access.sqlite');
+}
+
+/**
+ * Absolute path to the generated SQLite graph index. Lives under the `index/`
+ * dir alongside the FTS index (both are shareable in `shared` storage mode) but
+ * is a SEPARATE file so a `substrata index` FTS rebuild (which drops & recreates
+ * every FTS table) never wipes the graph, and vice-versa.
  */
 export function graphPath(cwd: string): string {
   return path.join(substrataDir(cwd), 'index', 'graph.sqlite');

@@ -1,0 +1,13 @@
+{
+  "name": "basic-repo-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example of a Substrata-enabled repository. substrata-cli is a devDependency so any teammate gets it from a plain `npm install` — no global install needed.",
+  "scripts": {
+    "memory:context": "substrata context",
+    "memory:bench": "substrata bench"
+  },
+  "devDependencies": {
+    "substrata-cli": "^0.2.0"
+  }
+}

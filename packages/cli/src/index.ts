@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 
 import { registerAddCommand } from './commands/add';
+import { registerBenchCommand } from './commands/bench';
 import { registerContextCommand } from './commands/context';
 import { registerDoctorCommand } from './commands/doctor';
 import { registerGcCommand } from './commands/gc';
@@ -9,6 +10,8 @@ import { registerGraphCommand } from './commands/graph';
 import { registerHookCommand } from './commands/hook';
 import { registerIndexCommand } from './commands/index';
 import { registerInitCommand } from './commands/init';
+import { registerInternalMergeDbCommand } from './commands/internal-merge-db';
+import { registerInternalRefreshIndexCommand } from './commands/internal-refresh-index';
 import { registerListCommand } from './commands/list';
 import { registerMcpCommand } from './commands/mcp';
 import { registerMemoryUpdateCommand } from './commands/memory-update';
@@ -55,9 +58,12 @@ export function buildProgram(): Command {
   registerGcCommand(program);
   registerGraphCommand(program);
   registerMemoryUpdateCommand(program);
+  registerBenchCommand(program);
   registerHookCommand(program);
   registerUpgradeCommand(program);
   registerMcpCommand(program);
+  registerInternalMergeDbCommand(program);
+  registerInternalRefreshIndexCommand(program);
 
   return program;
 }

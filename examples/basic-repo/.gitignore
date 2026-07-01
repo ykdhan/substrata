@@ -1,4 +1,5 @@
 .substrata/index/
 .substrata/cache/
 .substrata/tmp/
+.substrata/local/
 node_modules/

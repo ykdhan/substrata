@@ -35,6 +35,21 @@ The second agent avoids repeating context discovery and past mistakes
 
 Substrata is **not** a replacement for Git commits, PR descriptions, ADRs, or documentation. It is an **agent-native memory system** optimized for coding agents that need project context before making changes.
 
+## 🧠 Why Substrata — not just a markdown file the agent writes itself?
+
+Agents already scribble notes into `CLAUDE.md`, `.cursorrules`, or a scratch file. That "self-managed memory" hits a wall fast. Substrata is the **system** around the markdown, not just the markdown:
+
+| Self-written markdown                                                                                         | Substrata                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Siloed** — lives in one agent/session/developer; ChatGPT-style memory is hosted + per-account.              | **Shared team asset** — committed to the repo, versioned, and consumed by _every_ editor/agent (Claude Code, Cursor, Gemini, Codex) via MCP.                                                |
+| **Read-all** — the whole file is loaded into context; it doesn't scale and eventually gets ignored.           | **Retrieve-only-relevant** — FTS + a graph index surface just the memory that matters for the current task, within a token budget. Scales as memory grows.                                  |
+| **Flat prose** — no notion of "this replaced that", "these touch the same file", "this was rejected and why". | **Relational (graph)** — supersedes chains + shared-file/decision/concept bridges surface the _current, connected_ memory, not stale text.                                                  |
+| **Rots** — contradictory entries pile up; nothing marks things superseded or prunes.                          | **Evolves** — `supersede`, `gc`, and `status` (draft/completed/superseded/deprecated) keep memory current.                                                                                  |
+| **Ad-hoc** — the agent rarely writes good notes, and rarely reads them before acting.                         | **Deterministic loop** — Claude Code hooks inject relevant context on every prompt and remind the agent to record after non-trivial work. Memory is _actually_ read + written each session. |
+| **Ungoverned** — secrets leak, files sprawl, nothing is reviewable.                                           | **Governed** — secret redaction/scan, a pre-commit hook, PR-reviewable structured footprints, and a strict local-only guarantee (nothing is transmitted).                                   |
+
+**Honest scope:** Substrata does not fix _what_ gets written — quality still depends on the agent (garbage in, garbage out), and for a tiny project a single `CLAUDE.md` is fine. Its value grows with the **size of the memory** and the **size of the team**. What it changes is the category: from "a file an agent sometimes reads" to "a shared, indexed, evolving, governed knowledge base that agents reliably use."
+
 ## 🚀 Quick Start
 
 ### Installation and Setup
@@ -154,6 +169,87 @@ no recent footprints, a low read:write ratio), and `substrata gc` reports
 duplicate/stale footprints — `gc --auto-supersede` links older duplicates to the
 newest so retrieval only surfaces the current one.
 
+### Sharing memory with your team — the ledger model (`storage.sharing`)
+
+Think of it like Bitcoin: nodes don't ship the "balance database" around — they
+share the **ledger** (transactions) and each node **replays** it to arrive at the
+identical state. Substrata works the same way:
+
+- The **ledger** = the committed markdown footprints/memory (the append-only record).
+- The **index/graph DB** = _derived_ state, a deterministic function of that ledger.
+
+So you don't need to ship the DB at all: everyone re-derives the **identical** index
+from the same markdown (the build is deterministic — no wall-clock timestamps,
+`VACUUM`-normalized). Same ledger + same rules ⇒ same graph, for the whole team,
+with **nothing binary in Git history**. This is the recommended default.
+
+| Mode                 | What's committed                    | Clone experience                                                       | Git history                                             |
+| -------------------- | ----------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| `local` (default) ⭐ | Markdown only (the ledger)          | Auto-rebuild hook re-derives the identical index on `pull`/`checkout`. | Grows only with text — bounded, diff-able.              |
+| `shared`             | Markdown **+ the binary `.sqlite`** | Prebuilt index present instantly, zero rebuild.                        | **Grows unbounded** — a full DB blob per change. Niche. |
+
+```bash
+substrata init                     # local/ledger mode (recommended)
+substrata init --sharing shared    # also commit the binary snapshot (small, stable corpora only)
+```
+
+**How `local` stays seamless (no manual rebuild):** `init` installs `post-merge` +
+`post-checkout` git hooks that run `npx --no-install substrata-cli internal-refresh-index` after a
+pull/checkout. Because freshness is **content-based** (not mtime-based), it only
+rebuilds when the markdown actually changed — an unchanged pull is a no-op, and the
+index is ready before your agent's first query. Skip the hook with `--no-index-hook`.
+
+**Incremental by default (scales to a large memory).** Re-deriving the index does
+**not** re-read the whole corpus: a per-file manifest (stat + content hash) means
+only the footprints that actually changed are re-parsed and re-indexed, so the cost
+scales with the size of your change, not the size of the memory. Adding one footprint
+to a 300-doc corpus reindexes in a fraction of a full rebuild. `substrata index`
+still does a full deterministic rebuild when you want one.
+
+**When to use `shared` (binary) instead:** only if your memory corpus is small and
+stable and you want literally zero rebuild on clone. Trade-off: **every change adds
+a full binary blob to Git history**, which grows without bound — think of it as an
+"assumeutxo" snapshot you commit, not a scalable strategy. `init`/`upgrade` register
+a `substrata-rebuild` git **merge driver** so a conflicting `.sqlite` auto-resolves
+by rebuilding from the merged markdown, and `substrata doctor` warns when the
+committed DB drifts from the markdown or grows large enough to bloat history.
+
+**Privacy (both modes):** the telemetry access log lives under `.substrata/local/`
+and is **always** gitignored, so query text is never committed even in `shared`
+mode. Nothing is ever transmitted.
+
+To make the install→use flow seamless for teammates who don't have Substrata
+installed globally, `init` also adds `substrata-cli` to your project's
+`package.json` `devDependencies` (when one exists), so a plain `npm install`
+after cloning is enough. Skip this with `--no-cli-dep`.
+
+### Benchmarking token + latency savings (`substrata bench`)
+
+Quantify what the index buys over the naive no-index path — an agent reading
+every footprint and memory file to find context:
+
+```bash
+substrata bench                                  # uses recent footprint titles as queries
+substrata bench "improve search performance"     # benchmark a specific query
+substrata bench --json                            # machine-readable
+```
+
+```
+Substrata benchmark — 6 doc(s) in the corpus
+
+  Baseline = read the whole .substrata markdown corpus (no index).
+  Substrata = FTS + graph retrieval rendered within the token budget.
+
+  query                               baseline  substrata   saved    b.ms    s.ms
+  improve search performance              2310        180     92%     1.2     3.4
+
+  average: 2310 → 180 tokens (92% fewer), 1.2ms → 3.4ms.
+```
+
+`baseline` is the token cost of dumping the whole corpus; `substrata` is the
+budget-bounded, relevance-ranked context the agent actually receives. Both use
+the same `ceil(chars / 3.5)` token approximation as the context renderer.
+
 ### Troubleshooting `better-sqlite3`
 
 Substrata uses `better-sqlite3` for the local FTS search index. It's a native module and can be tricky to install in some environments (Node version mismatch, ARM architecture, corporate proxy, etc.).
@@ -245,6 +341,7 @@ See **[docs/graph.md](docs/graph.md)** for the full design, node/edge model, and
 | `index`              | Build or rebuild the local search index (FTS + graph)                                                    |
 | `doctor`             | Verify repository setup                                                                                  |
 | `stats`              | Report memory read/write usage (read:write ratio, hot/cold footprints) from the local access log         |
+| `bench [queries…]`   | Benchmark token + latency cost: whole-corpus read vs Substrata indexed retrieval (`--json`)              |
 | `gc`                 | Report duplicate/stale footprints; `--auto-supersede` links older duplicates to the newest               |
 | `supersede <old-id>` | Mark an old footprint as replaced by a new one                                                           |
 | `memory update`      | Append suggestions from recent footprints to curated memory files                                        |
@@ -308,8 +405,23 @@ substrata mcp print-config --client codex      # print a copy-pasteable config (
                                                # mcpServers JSON for everything else)
 ```
 
-After upgrading the CLI, run `substrata upgrade` once to refresh all of the above
-(agent rules + every MCP registration) and rebuild the indexes.
+### Upgrading the CLI version
+
+When you bump `substrata-cli`, **your data migrates automatically** on next use:
+config gains any new defaults (deep-merged, so old `config.yml` files keep working),
+and an index built by an older schema is detected as stale and rebuilt transparently.
+
+**Generated setup files are not auto-rewritten** on a version bump — the git hooks,
+`.gitignore`/`.gitattributes`, editor rule blocks (`CLAUDE.md`/`GEMINI.md`/Cursor),
+and MCP registrations are only refreshed by `substrata upgrade`. Run it once after
+upgrading:
+
+```bash
+substrata upgrade   # refresh generated files + rebuild the index (idempotent)
+```
+
+`substrata doctor` records which CLI version last set the project up and **warns you
+to run `upgrade`** whenever a newer CLI is detected, so you never silently drift.
 
 ## 🧰 MCP Tools
 
@@ -343,9 +455,10 @@ See `docs/mcp.md` for detailed tool signatures and `docs/graph.md` for the graph
   templates/
     footprint.md            # template for interactive add
     memory.md
-  index/                     # generated, gitignored — safe to delete and rebuild
+  index/                     # FTS + graph index — gitignored in 'local' mode, committed in 'shared' mode
     footprint.sqlite        # SQLite FTS search index
     graph.sqlite            # 🕸️ SQLite graph index (auxiliary, built alongside FTS)
+  local/                     # ALWAYS gitignored — never committed, even in shared mode
     access.sqlite           # local read/write telemetry (survives index rebuilds)
   cache/                     # temporary data (gitignored)
 ```
@@ -365,12 +478,14 @@ Never store secrets, credentials, API keys, tokens, or sensitive user data in Su
 
 ## 📦 Monorepo Packages
 
-| Package                 | Purpose                                                                       | Published                       |
-| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------- |
-| `substrata-cli`         | CLI binary, commands, init wizard, MCP client registry, MCP server entrypoint | yes — the only npm package      |
-| `@substrata/core`       | File model, footprint/memory parsing, redaction, ID generation, setup writers | no — bundled into substrata-cli |
-| `@substrata/search`     | SQLite FTS index, querying, ranking, freshness detection                      | no — bundled into substrata-cli |
-| `@substrata/mcp-server` | MCP server and tool implementations                                           | no — bundled into substrata-cli |
+| Package                          | Purpose                                                                        | Published                       |
+| -------------------------------- | ------------------------------------------------------------------------------ | ------------------------------- |
+| `substrata-cli`                  | CLI binary, commands, init wizard, MCP client registry, MCP server entrypoint  | yes — the only npm package      |
+| `@substrata/core`                | Pure domain: footprint/memory file model, parsing, config, redaction, IDs      | no — bundled into substrata-cli |
+| `@substrata/index`               | SQLite FTS + graph index, querying, ranking, freshness detection               | no — bundled into substrata-cli |
+| `@substrata/editor-integrations` | Editor rule blocks, .gitignore, shell env, pre-commit secret hook, plan render | no — bundled into substrata-cli |
+| `@substrata/hooks`               | Claude Code lifecycle hook primitives (protocol adapter + settings installer)  | no — bundled into substrata-cli |
+| `@substrata/mcp-server`          | MCP server and tool implementations                                            | no — bundled into substrata-cli |
 
 ## 🤝 Contributing
 
@@ -389,8 +504,10 @@ pnpm format
 
 ### Project Layout
 
-- `packages/core/` — file model, parsing, setup writers
-- `packages/search/` — SQLite FTS, indexing, ranking
+- `packages/core/` — pure domain: file model, parsing, config, redaction
+- `packages/index/` — SQLite FTS + graph index, indexing, ranking
+- `packages/editor-integrations/` — editor rule blocks, .gitignore/shell setup, secret hook
+- `packages/hooks/` — Claude Code lifecycle hook primitives
 - `packages/cli/` — commands, wizard, MCP client registry
 - `packages/mcp-server/` — MCP tools
 - `examples/basic-repo/` — reference example with smoke tests

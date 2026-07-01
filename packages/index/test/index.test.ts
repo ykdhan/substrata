@@ -1,0 +1,181 @@
+import { existsSync } from 'node:fs';
+import { rm, utimes } from 'node:fs/promises';
+
+import { indexPath, listFootprints } from '@substrata/core';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { buildIndex } from '../src/indexer';
+import { getIndexStatus } from '../src/freshness';
+import { getRelatedToFile, search } from '../src/query';
+
+import { addFootprint, makeTempRepo, seedRepo } from './fixture';
+
+let cwd: string;
+
+beforeEach(async () => {
+  cwd = await makeTempRepo();
+  await seedRepo(cwd);
+});
+
+afterEach(async () => {
+  await rm(cwd, { recursive: true, force: true });
+});
+
+describe('buildIndex', () => {
+  it('creates the SQLite index file', async () => {
+    expect(existsSync(indexPath(cwd))).toBe(false);
+    await buildIndex(cwd);
+    expect(existsSync(indexPath(cwd))).toBe(true);
+  });
+});
+
+describe('search', () => {
+  it('returns relevant ranked results for a term', async () => {
+    await buildIndex(cwd);
+    const results = await search('learner search pagination', { cwd });
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]!.title).toContain('learner search performance');
+    expect(results[0]!.snippet.length).toBeGreaterThan(0);
+  });
+
+  it('applies the file filter', async () => {
+    await buildIndex(cwd);
+    const results = await search('learner', { cwd, files: ['api/learners.ts'] });
+    expect(results.length).toBeGreaterThan(0);
+    for (const r of results) {
+      expect(r.filesTouched).toContain('api/learners.ts');
+    }
+  });
+
+  it('applies the tag filter', async () => {
+    await buildIndex(cwd);
+    const results = await search('learner', { cwd, tags: ['redis'] });
+    expect(results.length).toBeGreaterThan(0);
+    for (const r of results) {
+      expect(r.tags).toContain('redis');
+    }
+  });
+
+  it('excludeSuperseded drops superseded and deprecated docs', async () => {
+    await buildIndex(cwd);
+    const withSuperseded = await search('redis', { cwd });
+    const withoutSuperseded = await search('redis', { cwd, excludeSuperseded: true });
+    expect(withSuperseded.some((r) => r.status === 'superseded')).toBe(true);
+    expect(withoutSuperseded.some((r) => r.status === 'superseded')).toBe(false);
+  });
+
+  it('demotes a superseded doc below a fresh completed doc for the same term', async () => {
+    await buildIndex(cwd);
+    const results = await search('redis learner', { cwd });
+    const completedIdx = results.findIndex((r) => r.status === 'completed');
+    const supersededIdx = results.findIndex((r) => r.status === 'superseded');
+    expect(completedIdx).toBeGreaterThanOrEqual(0);
+    expect(supersededIdx).toBeGreaterThanOrEqual(0);
+    expect(completedIdx).toBeLessThan(supersededIdx);
+  });
+
+  it('does not throw on a punctuation-heavy query', async () => {
+    await buildIndex(cwd);
+    const results = await search('why did we avoid Redis?!', { cwd });
+    expect(Array.isArray(results)).toBe(true);
+    expect(results.length).toBeGreaterThan(0);
+  });
+});
+
+describe('getRelatedToFile', () => {
+  it('finds footprints touching a file', async () => {
+    await buildIndex(cwd);
+    const results = await getRelatedToFile('api/learners.ts', { cwd });
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.some((r) => r.filesTouched.includes('api/learners.ts'))).toBe(true);
+  });
+});
+
+describe('getIndexStatus', () => {
+  it('is missing before build, fresh after', async () => {
+    expect(await getIndexStatus(cwd)).toEqual({ state: 'missing' });
+    await buildIndex(cwd);
+    expect(await getIndexStatus(cwd)).toEqual({ state: 'fresh' });
+  });
+
+  it('stays fresh when only mtime changes (content unchanged) — clone/checkout case', async () => {
+    await buildIndex(cwd);
+    const footprints = await listFootprints(cwd);
+    const target = footprints[0]!;
+    // A clone/checkout/pull bumps mtime without changing content. The cheap mtime
+    // check would call this stale, but the content-hash fallback keeps it fresh,
+    // so a committed (shared) index is usable on clone with no rebuild.
+    const future = new Date(Date.now() + 60_000);
+    await utimes(target.filePath, future, future);
+    expect(await getIndexStatus(cwd)).toEqual({ state: 'fresh' });
+  });
+
+  it('is stale after a real content change to a source file', async () => {
+    await buildIndex(cwd);
+    const footprints = await listFootprints(cwd);
+    const target = footprints[0]!;
+    const { appendFile } = await import('node:fs/promises');
+    await appendFile(target.filePath, '\n\nAppended content that changes the hash.\n', 'utf8');
+    expect((await getIndexStatus(cwd)).state).toBe('stale');
+  });
+
+  it('is stale (count) after adding a footprint', async () => {
+    await buildIndex(cwd);
+    await addFootprint(cwd, {
+      title: 'A brand new footprint',
+      purpose: 'Adds a source file so the count changes.',
+      actor: 'claude-code',
+      status: 'completed',
+    });
+    expect(await getIndexStatus(cwd)).toEqual({ state: 'stale', reason: 'count' });
+  });
+});
+
+describe('deterministic build (shared-mode churn)', () => {
+  it('rebuilds content-deterministically (only SQLite header counters differ)', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { indexPath } = await import('@substrata/core');
+
+    await buildIndex(cwd);
+    const first = await readFile(indexPath(cwd));
+    await buildIndex(cwd);
+    const second = await readFile(indexPath(cwd));
+
+    // No wall-clock built_at + VACUUM-normalized layout means the page/content
+    // body is reproducible. The only bytes that can still differ are SQLite's
+    // internal bookkeeping counters in the 100-byte file header (change counter,
+    // schema cookie, version-valid-for) — a handful of bytes, not content churn.
+    expect(second.length).toBe(first.length);
+    const diffs: number[] = [];
+    for (let i = 0; i < first.length; i += 1) {
+      if (first[i] !== second[i]) diffs.push(i);
+    }
+    expect(diffs.length).toBeLessThanOrEqual(8);
+    expect(diffs.every((i) => i < 100)).toBe(true);
+  });
+
+  it('is portable: a DB built in one checkout queries correctly from another path', async () => {
+    const { cp, mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+
+    // Build the index in repo A (simulating the dev who commits the shared DB).
+    await buildIndex(cwd);
+
+    // "Clone": copy the whole .substrata tree to a different absolute path (repo B).
+    const repoB = await mkdtemp(join(tmpdir(), 'substrata-clone-'));
+    try {
+      await cp(join(cwd, '.substrata'), join(repoB, '.substrata'), { recursive: true });
+
+      // The committed DB must be fresh + queryable in B without a rebuild, and the
+      // stored paths must be repo-relative (no leakage of repo A's absolute path).
+      expect(await getIndexStatus(repoB)).toEqual({ state: 'fresh' });
+      const results = await search('learner search', { cwd: repoB });
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((r) => !r.filePath.startsWith('/'))).toBe(true);
+      expect(results.every((r) => !r.filePath.includes(cwd))).toBe(true);
+    } finally {
+      await rm(repoB, { recursive: true, force: true });
+    }
+  });
+});

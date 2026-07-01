@@ -1,5 +1,5 @@
 import { listFootprints, listMemoryDocuments, writeFootprint } from '@substrata/core';
-import { buildIndex, hybridSearch } from '@substrata/search';
+import { buildIndex, hybridSearch } from '@substrata/index';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { renderGraphContext } from '../src/render/graph-context';

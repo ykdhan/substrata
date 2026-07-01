@@ -50,8 +50,10 @@
   },
   "devDependencies": {
     "@substrata/core": "workspace:*",
+    "@substrata/editor-integrations": "workspace:*",
+    "@substrata/hooks": "workspace:*",
     "@substrata/mcp-server": "workspace:*",
-    "@substrata/search": "workspace:*",
+    "@substrata/index": "workspace:*",
     "@types/node": "^22.0.0"
   }
 }

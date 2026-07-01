@@ -1,5 +1,5 @@
 import { listFootprints } from '@substrata/core';
-import { readStats } from '@substrata/search';
+import { readStats } from '@substrata/index';
 import type { Command } from 'commander';
 
 import { out, requireConfig, resolveCwd } from '../util';
